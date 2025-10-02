@@ -51,37 +51,11 @@ export default function TrainingPage() {
   return (
     <div className="app-card">
       <Section title="Treino semanal" description="Escolha o dia da divisão e marque as partes concluídas.">
+          <Link to="/training/config" className="training-actions__config">
+            Configurar treinos
+          </Link>
         <div className="training-header">
           <ProgressBar value={summaryProgress} label="Semana concluída" />
-          <div className="training-actions">
-            <button type="button" onClick={resetWeek} className="training-actions__reset">
-              Reiniciar semana
-            </button>
-            <Link to="/training/config" className="training-actions__config">
-              Configurar treinos
-            </Link>
-          </div>
-        </div>
-
-        <div className="training-preferences">
-          <label>
-            Estilo das informações
-            <select
-              value={preferences.displayFormat}
-              onChange={(e) => setPreferences({ displayFormat: e.target.value as (typeof preferences.displayFormat) })}
-            >
-              <option value="inline">Compacto (4 x 12 • descanso 60s)</option>
-              <option value="stacked">Detalhado (3 séries · 12 reps)</option>
-            </select>
-          </label>
-          <label className="training-preferences__merge">
-            <input
-              type="checkbox"
-              checked={preferences.mergeParts}
-              onChange={(e) => setPreferences({ mergeParts: e.target.checked })}
-            />
-            Unir cardio e musculação em uma lista
-          </label>
         </div>
 
         <div className="training-tabs">
@@ -136,6 +110,32 @@ export default function TrainingPage() {
               );
             })}
           </div>
+        </div>
+
+        <div className="training-preferences">
+          <div className="training-actions">
+            <button type="button" onClick={resetWeek} className="training-actions__reset">
+              Reiniciar semana
+            </button>
+          </div>
+          <label>
+            Estilo das informações
+            <select
+              value={preferences.displayFormat}
+              onChange={(e) => setPreferences({ displayFormat: e.target.value as (typeof preferences.displayFormat) })}
+            >
+              <option value="inline">Compacto (4 x 12 • descanso 60s)</option>
+              <option value="stacked">Detalhado (3 séries · 12 reps)</option>
+            </select>
+          </label>
+          <label className="training-preferences__merge">
+            <input
+              type="checkbox"
+              checked={preferences.mergeParts}
+              onChange={(e) => setPreferences({ mergeParts: e.target.checked })}
+            />
+            Unir cardio e musculação em uma lista
+          </label>
         </div>
       </Section>
     </div>
@@ -223,7 +223,7 @@ style.replaceSync(`
   border-radius: 16px;
   border: 1px solid rgba(148, 163, 184, 0.3);
   padding: 12px;
-  background: rgba(248, 250, 252, 0.8);
+  background: #bbdffb;
   display: flex;
   flex-direction: column;
   gap: 6px;

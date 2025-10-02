@@ -139,15 +139,20 @@ style.replaceSync(`
 }
 .water-today__header p {
   margin: 0;
-  color: #475569;
-  background: white;
-  color: #2563eb;
-  border: 1px solid rgba(37, 99, 235, 0.3);
+  color: #1d4ed8;
 }
 .water-today__form {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+.water-today__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.water-today__presets button {
+  flex: 1 1 120px;
 }
 .water-today__form label {
   display: flex;

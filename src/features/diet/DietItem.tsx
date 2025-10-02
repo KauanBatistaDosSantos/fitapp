@@ -50,13 +50,14 @@ style.replaceSync(`
   border-radius: 18px;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(255, 255, 255, 0.9);
-  padding: 14px 16px;
+  padding: 16px 18px;
   display: flex;
-  align-items: center;
-  gap: 14px;
+  align-items: flex-start;
+  gap: 16px;
   text-align: left;
   color: inherit;
   transition: transform 0.15s ease, border 0.15s ease, box-shadow 0.15s ease;
+  min-height: 76px;
 }
 .diet-item:hover {
   transform: translateY(-1px);
@@ -68,10 +69,10 @@ style.replaceSync(`
   border-color: rgba(37, 99, 235, 0.6);
 }
 .diet-item__icon {
-  height: 40px;
-  width: 40px;
-  border-radius: 12px;
-  background: rgba(148, 163, 184, 0.2);
+  height: 48px;
+  width: 48px;
+  border-radius: 14px;
+  background: rgba(148, 163, 184, 0.18);
   display: grid;
   place-items: center;
   font-size: 1.1rem;
@@ -85,24 +86,28 @@ style.replaceSync(`
 .diet-item__info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   flex: 1;
 }
 .diet-item__name {
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 1.05rem;
+  color: #0f172a;
 }
 .diet-item__subtitle {
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   color: #475569;
+  line-height: 1.35;
 }
 .diet-item__notes {
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   color: #64748b;
+  line-height: 1.35;
 }
 .diet-item__checkbox {
   font-size: 1.4rem;
   color: #2563eb;
   font-weight: 700;
+  margin-left: 12px;
 }
 `);

@@ -74,8 +74,16 @@ export function DietDayView({ day, dishes, onToggle, onToggleMeal }: DietDayView
 
               {isOpen && (
                 <div className="diet-day__panel">
-                  <div className="diet-day__panelActions">
-                    <button type="button" onClick={() => onToggleMeal(meal)}>
+                  <div className="diet-day__panelHeader">
+                    <div className="diet-day__panelText">
+                      <h3 className="diet-day__panelTitle">{label.title}</h3>
+                      <p className="diet-day__panelMeta">
+                        {total === 0
+                          ? "Nenhum prato cadastrado para este horário"
+                          : `${completed} de ${total} item(s) concluídos`}
+                      </p>
+                    </div>
+                    <button type="button" className="diet-day__panelButton" onClick={() => onToggleMeal(meal)}>
                       {completed === total && total > 0 ? "Desmarcar refeição" : "Concluir refeição"}
                     </button>
                   </div>
@@ -175,12 +183,55 @@ style.replaceSync(`
 .diet-day__panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 0 4px 10px 4px;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 18px 36px -28px rgba(15, 23, 42, 0.45);
 }
-.diet-day__panelActions {
+.diet-day__panelHeader {
   display: flex;
-  justify-content: flex-end;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.diet-day__panelText {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.diet-day__panelTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+.diet-day__panelMeta {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #475569;
+}
+.diet-day__panelButton {
+  border-radius: 999px;
+  border: none;
+  background: #2563eb;
+  color: #f8fafc;
+  font-weight: 600;
+  padding: 10px 18px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+  white-space: nowrap;
+  align-self: flex-start;
+}
+.diet-day__panelButton:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
+}
+.diet-day__panelButton:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
 }
 .diet-day__items {
   display: flex;
