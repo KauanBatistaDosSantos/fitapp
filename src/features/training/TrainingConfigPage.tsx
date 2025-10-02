@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Section } from "@/components/Section";
@@ -33,7 +33,7 @@ export default function TrainingConfigPage() {
   });
   const [newCardio, setNewCardio] = useState("");
   const [selectedSplit, setSelectedSplit] = useState<Split>("A");
-  const [cardioKind, setCardioKind] = useState(cardioCatalog[0]?.kind ?? "Zumba");
+  const [cardioKind, setCardioKind] = useState(cardioCatalog[0]?.kind ?? "");
   const [cardioMinutes, setCardioMinutes] = useState("30");
   const [exerciseId, setExerciseId] = useState(catalog[0]?.id ?? "");
   const [sets, setSets] = useState("4");
@@ -41,6 +41,22 @@ export default function TrainingConfigPage() {
   const [rest, setRest] = useState("60");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingForm, setEditingForm] = useState({ name: "", muscle: "", gifUrl: "", secondary: "", substitutions: [] as string[] });
+
+  useEffect(() => {
+    if (cardioCatalog.length === 0 && cardioKind !== "") {
+      setCardioKind("");
+    } else if (cardioCatalog.length > 0 && !cardioCatalog.some((item) => item.kind === cardioKind)) {
+      setCardioKind(cardioCatalog[0].kind);
+    }
+  }, [cardioCatalog, cardioKind]);
+
+  useEffect(() => {
+    if (catalog.length === 0 && exerciseId !== "") {
+      setExerciseId("");
+    } else if (catalog.length > 0 && !catalog.some((item) => item.id === exerciseId)) {
+      setExerciseId(catalog[0].id);
+    }
+  }, [catalog, exerciseId]);
 
   const muscleOptions = useMemo(() => {
     const set = new Set<string>();
@@ -305,6 +321,43 @@ export default function TrainingConfigPage() {
             </select>
           </label>
           <form className="training-config__subform" onSubmit={handleAddCardioBlock}>
+                        <h4>Adicionar cardio</h4>
+            <label>
+              Tipo de cardio
+              <select value={cardioKind} onChange={(e) => setCardioKind(e.target.value)}>
+                <option value="" disabled>
+                  Selecione uma opção
+                </option>
+                {cardioCatalog.map((item) => (
+                  <option key={item.id} value={item.kind}>
+                    {item.kind}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Duração (minutos)
+              <input value={cardioMinutes} onChange={(e) => setCardioMinutes(e.target.value)} type="number" min={5} step={5} />
+            </label>
+            <button type="submit" disabled={!cardioKind}>
+              Adicionar bloco AM
+            </button>
+          </form>
+          <form className="training-config__subform" onSubmit={handleAddPmExercise}>
+            <h4>Adicionar exercício</h4>
+            <label>
+              Exercício
+              <select value={exerciseId} onChange={(e) => setExerciseId(e.target.value)}>
+                <option value="" disabled>
+                  Selecione um exercício
+                </option>
+                {catalog.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label>
               Séries
               <input value={sets} onChange={(e) => setSets(e.target.value)} type="number" min={1} max={10} />
@@ -318,7 +371,7 @@ export default function TrainingConfigPage() {
               <input value={rest} onChange={(e) => setRest(e.target.value)} type="number" min={30} step={15} />
             </label>
             <button type="submit" disabled={!exerciseId}>
-              Adicionar exercício
+              Adicionar bloco PM
             </button>
           </form>
         </div>

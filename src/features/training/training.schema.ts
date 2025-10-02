@@ -44,7 +44,7 @@ export type TrainingDayPlan = z.infer<typeof TrainingDayPlan>;
 export const TrainingTemplate = z.record(Split, TrainingDayPlan);
 export type TrainingTemplate = z.infer<typeof TrainingTemplate>;
 
-export const TrainingLog = z.object({
+export const TrainingLogSchema = z.object({
   dateISO: z.string(),
   split: Split,
   amDone: z.boolean(),
@@ -53,4 +53,4 @@ export const TrainingLog = z.object({
   completedCardio: z.array(z.string()).default([]),
   setProgress: z.record(z.string(), z.number()).default({}),
 });
-export type TrainingLog = z.infer<typeof TrainingLog>;
+export type TrainingLog = z.infer<typeof TrainingLogSchema>;

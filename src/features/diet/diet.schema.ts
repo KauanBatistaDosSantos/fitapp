@@ -30,9 +30,10 @@ export const WeeklyDietTemplate = z.record(
 );
 export type WeeklyDietTemplate = z.infer<typeof WeeklyDietTemplate>;
 
-export const DailyDietProgress = z.object({
+export const DailyDietProgressSchema = z.object({
   dateISO: z.string(),
   meals: z.record(MealName, z.array(z.object({
     id: z.string(), dishId: z.string(), qty: z.number(), checked: z.boolean()
   })))
 });
+export type DailyDietProgress = z.infer<typeof DailyDietProgressSchema>;

@@ -102,7 +102,7 @@ export const useTraining = create<TrainingState>((set) => ({
   updateCatalogExercise: (id, patch) =>
     set((state) => {
       let updatedCatalogItem: ExerciseCatalogItem | undefined;
-      const catalog = state.catalog.map((item) => {
+      const catalog = state.catalog.map((item: ExerciseCatalogItem) => {
         if (item.id !== id) return item;
         const musclesInput = (
           patch.muscles ?? (patch.muscle ? [patch.muscle] : item.muscles) ?? []

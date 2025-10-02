@@ -193,6 +193,16 @@ export default function DietConfigPage() {
                 <option value="sun">Domingo</option>
               </select>
             </label>
+                        <label>
+              Refeição
+              <select value={meal} onChange={(e) => setMeal(e.target.value as MealName)}>
+                {mealOrder.map((mealKey) => (
+                  <option key={mealKey} value={mealKey}>
+                    {mealLabels[mealKey].title}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label>
               Prato
               <select value={dishId} onChange={(e) => setDishId(e.target.value)}>
