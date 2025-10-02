@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Split, TrainingTemplate, TrainingLog, Exercise } from "./training.schema";
 import { sessionProgress, isToday } from "./training.service";
 import type { ExerciseCatalogItem, TrainingPreferences } from "./training.store";
@@ -18,7 +18,6 @@ type TrainingSplitProps = {
   catalog: ExerciseCatalogItem[];
   preferences: TrainingPreferences;
   onTogglePart: (split: Split, part: "am" | "pm") => void;
-  onToggleExercise: (split: Split, id: string) => void;
   onToggleCardio: (split: Split, id: string) => void;
   onSetSetProgress: (split: Split, id: string, setsCompleted: number) => void;
   onRecordLoad: (split: Split, id: string, loadKg: number) => void;
@@ -42,7 +41,6 @@ export function TrainingSplit({
   catalog,
   preferences,
   onTogglePart,
-  onToggleExercise,
   onToggleCardio,
   onSetSetProgress,
   onRecordLoad,
@@ -132,7 +130,6 @@ export function TrainingSplit({
                 setsCompleted={item.setsCompleted}
                 catalogInfo={catalogById[item.exercise.catalogId ?? ""]}
                 displayFormat={preferences.displayFormat}
-                onToggle={() => onToggleExercise(split, item.exercise.id)}
                 onOpenDetails={() =>
                   setDetailState({
                     id: item.exercise.id,
@@ -187,7 +184,6 @@ export function TrainingSplit({
                       setsCompleted={log?.setProgress[exercise.id] ?? (log?.doneExercises.includes(exercise.id) ? exercise.sets : 0)}
                       catalogInfo={catalogById[exercise.catalogId ?? ""]}
                       displayFormat={preferences.displayFormat}
-                      onToggle={() => onToggleExercise(split, exercise.id)}
                       onOpenDetails={() =>
                         setDetailState({
                           id: exercise.id,
@@ -263,7 +259,6 @@ type ExerciseItemProps = {
   setsCompleted: number;
   catalogInfo?: ExerciseCatalogItem;
   displayFormat: TrainingPreferences["displayFormat"];
-  onToggle: () => void;
   onOpenDetails: () => void;
   onSetProgress: (sets: number) => void;
 };
@@ -274,29 +269,121 @@ function ExerciseItem({
   setsCompleted,
   catalogInfo,
   displayFormat,
-  onToggle,
   onOpenDetails,
   onSetProgress,
 }: ExerciseItemProps) {
   const detail = formatExerciseDetail(exercise, displayFormat);
   const muscles = resolveMuscles(exercise, catalogInfo);
+  const gif = exercise.gifUrl ?? catalogInfo?.gifUrl;
+  const [showControls, setShowControls] = useState(() => setsCompleted > 0);
+  const [restRemaining, setRestRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (setsCompleted > 0) {
+      setShowControls(true);
+    }
+    if (setsCompleted >= exercise.sets) {
+      setRestRemaining(null);
+    }
+  }, [setsCompleted, exercise.sets]);
+
+  useEffect(() => {
+    if (restRemaining == null || restRemaining <= 0) return;
+    const interval = window.setInterval(() => {
+      setRestRemaining((prev) => {
+        if (prev == null) return prev;
+        if (prev <= 1) return 0;
+        return prev - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [restRemaining]);
+
+  const progressPercent = Math.min(100, Math.round((setsCompleted / Math.max(exercise.sets, 1)) * 100));
+  const isResting = restRemaining != null && restRemaining > 0;
+  const isCompleted = setsCompleted >= exercise.sets;
+
+  const handlePlay = () => {
+    setShowControls(true);
+    if (isCompleted) return;
+    const nextValue = Math.min(setsCompleted + 1, exercise.sets);
+    onSetProgress(nextValue);
+    if (nextValue < exercise.sets) {
+      setRestRemaining(exercise.restSec ?? 60);
+    } else {
+      setRestRemaining(null);
+    }
+  };
+
+  const handleSetChange = (value: number) => {
+    setShowControls(true);
+    onSetProgress(value);
+    if (value >= exercise.sets || value < setsCompleted) {
+      setRestRemaining(null);
+    }
+  };
+
+  const playLabel = isCompleted
+    ? "Concluído"
+    : setsCompleted === 0
+    ? "Iniciar série"
+    : "Próxima série";
+  const playIcon = isCompleted ? "✓" : "▶️";
 
   return (
     <div className={`training-split__exercise ${done ? "training-split__exercise--done" : ""}`}>
-      <div className="training-split__exerciseHeader">
-        <button type="button" className="training-split__check" onClick={onToggle} aria-label={done ? "Desmarcar" : "Concluir"}>
-          {done ? "✓" : "○"}
-        </button>
-        <div className="training-split__exerciseInfo">
-          <span className="training-split__exerciseName">{exercise.name}</span>
-          {muscles.length > 0 && <span className="training-split__exerciseMuscle">{muscles.join(", ")}</span>}
-          <span className="training-split__exerciseDetail">{detail}</span>
+      <div className="training-split__exerciseMain">
+        <div className="training-split__exerciseMedia">
+          {gif ? (
+            <img src={gif} alt={exercise.name} className="training-split__exerciseImage" loading="lazy" />
+          ) : (
+            <span className="training-split__exercisePlaceholder">Sem imagem</span>
+          )}
         </div>
-        <button type="button" className="training-split__detailButton" onClick={onOpenDetails} aria-label="Ver detalhes do exercício">
-          ℹ️
-        </button>
+        <div className="training-split__exerciseContent">
+          <div className="training-split__exerciseHeading">
+            <div className="training-split__exerciseMeta">
+              <span className="training-split__exerciseName">{exercise.name}</span>
+              {muscles.length > 0 && <span className="training-split__exerciseMuscle">{muscles.join(", ")}</span>}
+              <span className="training-split__exerciseDetail">{detail}</span>
+            </div>
+            <div className="training-split__exerciseActions">
+              <button
+                type="button"
+                className="training-split__detailButton"
+                onClick={onOpenDetails}
+                aria-label="Ver detalhes do exercício"
+              >
+                ℹ️
+              </button>
+              <button
+                type="button"
+                className={`training-split__play ${isCompleted ? "training-split__play--done" : ""}`}
+                onClick={handlePlay}
+              >
+                <span aria-hidden="true">{playIcon}</span>
+                <span>{playLabel}</span>
+              </button>
+            </div>
+          </div>
+          {isResting && !isCompleted && (
+            <div className="training-split__restNotice">Descanso: {formatSeconds(restRemaining)}</div>
+          )}
+        </div>
       </div>
-      <SetCounter total={exercise.sets} completed={setsCompleted} onChange={onSetProgress} />
+      {showControls && (
+        <div className="training-split__exerciseControls">
+          <SetCounter total={exercise.sets} completed={setsCompleted} onChange={handleSetChange} />
+          <div className="training-split__exerciseProgress">
+            <div className="training-split__exerciseProgressBar" aria-hidden="true">
+              <div className="training-split__exerciseProgressFill" style={{ width: `${progressPercent}%` }} />
+            </div>
+            <span className="training-split__exerciseProgressText">
+              {setsCompleted} de {exercise.sets} séries
+            </span>
+          </div>
+        </div>
+      )}
       {exercise.notes && <span className="training-split__exerciseNote">Obs.: {exercise.notes}</span>}
     </div>
   );
@@ -424,6 +511,14 @@ function ExerciseDetail({
   );
 }
 
+function formatSeconds(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) return "00:00";
+  const total = Math.max(0, Math.floor(value));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+}
+
 function formatExerciseDetail(exercise: Exercise, format: TrainingPreferences["displayFormat"]) {
   const loadText = exercise.loadKg != null ? `${exercise.loadKg.toFixed(1)} kg` : undefined;
   if (format === "inline") {
@@ -533,36 +628,59 @@ style.replaceSync(`
 .training-split__exercise {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 16px;
-  padding: 14px;
+  padding: 16px;
   background: white;
 }
 .training-split__exercise--done {
   border-color: rgba(37, 99, 235, 0.6);
   background: rgba(37, 99, 235, 0.08);
 }
-.training-split__exerciseHeader {
+.training-split__exerciseMain {
   display: flex;
-  gap: 12px;
-  align-items: center;
+  gap: 16px;
+  align-items: flex-start;
 }
-.training-split__check {
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  width: 36px;
-  height: 36px;
+  .training-split__exerciseMedia {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.15);
   display: grid;
   place-items: center;
-  font-size: 1.2rem;
-  background: rgba(248, 250, 252, 0.9);
+  flex-shrink: 0;
+  border: 1px solid rgba(148, 163, 184, 0.3);
 }
-.training-split__exerciseInfo {
+.training-split__exerciseImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.training-split__exercisePlaceholder {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-align: center;
+  padding: 0 8px;
+}
+.training-split__exerciseContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.training-split__exerciseHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.training-split__exerciseMeta {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  flex: 1;
 }
 .training-split__exerciseName {
   font-weight: 700;
@@ -575,11 +693,49 @@ style.replaceSync(`
   font-size: 0.85rem;
   color: #475569;
 }
+.training-split__exerciseActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .training-split__detailButton {
   border-radius: 10px;
   border: 1px solid rgba(148, 163, 184, 0.3);
   padding: 6px 10px;
   background: rgba(248, 250, 252, 0.9);
+  cursor: pointer;
+}
+.training-split__play {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  background: #2563eb;
+  color: white;
+  padding: 6px 14px;
+  font-weight: 600;
+  box-shadow: 0 10px 20px -12px rgba(37, 99, 235, 0.8);
+  cursor: pointer;
+}
+.training-split__play--done {
+  background: rgba(34, 197, 94, 0.15);
+  color: #15803d;
+  border-color: rgba(34, 197, 94, 0.4);
+  box-shadow: none;
+  cursor: default;
+}
+.training-split__restNotice {
+  font-size: 0.85rem;
+  color: #2563eb;
+  font-weight: 600;
+}
+.training-split__exerciseControls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  padding-top: 12px;
 }
 .training-split__sets {
   display: flex;
@@ -600,6 +756,31 @@ style.replaceSync(`
   border-color: rgba(37, 99, 235, 0.6);
   background: rgba(37, 99, 235, 0.15);
   color: #1d4ed8;
+}
+.training-split__exerciseProgress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.training-split__exerciseProgressBar {
+  position: relative;
+  height: 8px;
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.training-split__exerciseProgressFill {
+  position: absolute;
+  inset: 0;
+  width: 0;
+  background: #2563eb;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+.training-split__exerciseProgressText {
+  font-size: 0.85rem;
+  color: #475569;
+  font-weight: 600;
 }
 .training-split__exerciseNote {
   font-size: 0.8rem;

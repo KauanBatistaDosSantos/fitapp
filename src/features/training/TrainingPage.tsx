@@ -12,7 +12,6 @@ export default function TrainingPage() {
     template,
     weekLog,
     toggleSessionPart,
-    toggleExerciseDone,
     toggleCardioBlock,
     setExerciseSetProgress,
     recordExerciseLoad,
@@ -105,7 +104,6 @@ export default function TrainingPage() {
           catalog={catalog}
           preferences={preferences}
           onTogglePart={toggleSessionPart}
-          onToggleExercise={toggleExerciseDone}
           onToggleCardio={toggleCardioBlock}
           onSetSetProgress={setExerciseSetProgress}
           onRecordLoad={recordExerciseLoad}
