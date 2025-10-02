@@ -8,7 +8,7 @@ import { computeDietProgress } from "./diet.service";
 import { DietDayView } from "./DietDayView";
 
 export default function DietPage() {
-  const { today, catalog, regenerateTodayFromWeekly, toggleTodayItem } = useDiet();
+  const { today, catalog, regenerateTodayFromWeekly, toggleTodayItem, toggleTodayMeal } = useDiet();
 
   useEffect(() => {
     if (today.dateISO !== isoDate()) {
@@ -29,7 +29,7 @@ export default function DietPage() {
         <p className="diet-summary">
           {progress.checkedItems} de {progress.totalItems} itens concluídos · {progress.completedMeals} refeições completas
         </p>
-        <DietDayView day={today} dishes={catalog} onToggle={toggleTodayItem} />
+        <DietDayView day={today} dishes={catalog} onToggle={toggleTodayItem} onToggleMeal={toggleTodayMeal} />
       </Section>
     </div>
   );

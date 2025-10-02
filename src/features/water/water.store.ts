@@ -14,6 +14,10 @@ type WaterState = {
   addEntry: (ml: number) => void;
   resetToday: () => void;
   commitToday: () => void;
+  updateTodayEntry: (index: number, ml: number) => void;
+  removeTodayEntry: (index: number) => void;
+  updateHistoryEntry: (dateISO: string, total: number) => void;
+  removeHistoryEntry: (dateISO: string) => void;
 };
 
 const configFallback = () => load("water:config", waterConfigSeed);
@@ -54,6 +58,23 @@ export const useWater = create<WaterState>((set) => ({
       return { today };
     }),
 
+  updateTodayEntry: (index, ml) =>
+    set((state) => {
+      const today = ensureTodayLog(state.today, state.config.targetML);
+      if (!Number.isFinite(ml) || ml <= 0) return { today };
+      today.entries = today.entries.map((entry, idx) => (idx === index ? ml : entry));
+      save("water:today", today);
+      return { today };
+    }),
+
+  removeTodayEntry: (index) =>
+    set((state) => {
+      const today = ensureTodayLog(state.today, state.config.targetML);
+      today.entries = today.entries.filter((_, idx) => idx !== index);
+      save("water:today", today);
+      return { today };
+    }),
+
   resetToday: () =>
     set((state) => {
       const today = { dateISO: isoDate(), targetML: state.config.targetML, entries: [] };
@@ -71,5 +92,22 @@ export const useWater = create<WaterState>((set) => ({
       save("water:hist", monthHistory);
       save("water:today", today);
       return { monthHistory, today };
+    }),
+
+  updateHistoryEntry: (dateISO, total) =>
+    set((state) => {
+      if (!Number.isFinite(total) || total <= 0) return {};
+      const monthHistory = state.monthHistory.map((log) =>
+        log.dateISO === dateISO ? { ...log, entries: [total] } : log,
+      );
+      save("water:hist", monthHistory);
+      return { monthHistory };
+    }),
+
+  removeHistoryEntry: (dateISO) =>
+    set((state) => {
+      const monthHistory = state.monthHistory.filter((log) => log.dateISO !== dateISO);
+      save("water:hist", monthHistory);
+      return { monthHistory };
     }),
 }));

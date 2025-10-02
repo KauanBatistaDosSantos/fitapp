@@ -10,10 +10,14 @@ type WaterTodayProps = {
   onAdd: (ml: number) => void;
   onCommit: () => void;
   onReset: () => void;
+  onUpdateEntry: (index: number, ml: number) => void;
+  onRemoveEntry: (index: number) => void;
 };
 
-export function WaterToday({ log, presets, onAdd, onCommit, onReset }: WaterTodayProps) {
+export function WaterToday({ log, presets, onAdd, onCommit, onReset, onUpdateEntry, onRemoveEntry }: WaterTodayProps) {
   const [custom, setCustom] = useState("250");
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingValue, setEditingValue] = useState("0");
   const total = useMemo(() => totalIntake(log), [log]);
   const progress = intakeProgress(log);
 
@@ -23,6 +27,15 @@ export function WaterToday({ log, presets, onAdd, onCommit, onReset }: WaterToda
     if (!Number.isFinite(value) || value <= 0) return;
     onAdd(value);
     setCustom("250");
+  };
+
+  const handleUpdate = (evt: FormEvent) => {
+    evt.preventDefault();
+    if (editingIndex === null) return;
+    const value = Number(editingValue);
+    if (!Number.isFinite(value) || value <= 0) return;
+    onUpdateEntry(editingIndex, value);
+    setEditingIndex(null);
   };
 
   return (
@@ -68,9 +81,40 @@ export function WaterToday({ log, presets, onAdd, onCommit, onReset }: WaterToda
           <p className="water-today__empty">Comece registrando o primeiro copo de água!</p>
         ) : (
           <ul>
-            {log.entries.map((entry, index) => (
-              <li key={`${entry}-${index}`}>{entry} ml</li>
-            ))}
+            {log.entries.map((entry, index) => {
+              const isEditing = editingIndex === index;
+              return (
+                <li key={`${entry}-${index}`}>
+                  {isEditing ? (
+                    <form onSubmit={handleUpdate} className="water-today__editForm">
+                      <input
+                        value={editingValue}
+                        onChange={(e) => setEditingValue(e.target.value)}
+                        type="number"
+                        min={50}
+                        step={50}
+                      />
+                      <button type="submit">Salvar</button>
+                      <button type="button" onClick={() => setEditingIndex(null)}>
+                        Cancelar
+                      </button>
+                    </form>
+                  ) : (
+                    <span>{entry} ml</span>
+                  )}
+                  {!isEditing && (
+                    <div className="water-today__entryActions">
+                      <button type="button" onClick={() => { setEditingIndex(index); setEditingValue(String(entry)); }}>
+                        Editar
+                      </button>
+                      <button type="button" onClick={() => onRemoveEntry(index)}>
+                        Excluir
+                      </button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -96,23 +140,6 @@ style.replaceSync(`
 .water-today__header p {
   margin: 0;
   color: #475569;
-}
-.water-today__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.water-today__reset {
-  background: transparent;
-  border-color: rgba(37, 99, 235, 0.2);
-  color: #1d4ed8;
-}
-.water-today__presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.water-today__presets button {
   background: white;
   color: #2563eb;
   border: 1px solid rgba(37, 99, 235, 0.3);
@@ -138,20 +165,32 @@ style.replaceSync(`
 }
 .water-today__entries ul {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
   margin: 0;
+  padding: 0;
 }
 .water-today__entries li {
   background: white;
   border-radius: 12px;
-  padding: 6px 12px;
+  padding: 10px 12px;
   border: 1px solid rgba(148, 163, 184, 0.3);
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 .water-today__empty {
   margin: 0;
   color: #94a3b8;
+}
+.water-today__entryActions {
+  display: flex;
+  gap: 6px;
+}
+.water-today__editForm {
+  display: flex;
+  gap: 6px;
 }
 @media (min-width: 640px) {
   .water-today__header {

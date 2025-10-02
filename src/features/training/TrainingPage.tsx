@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ProgressBar } from "@/components/ProgressBar";
 import { Section } from "@/components/Section";
@@ -8,26 +8,82 @@ import { TrainingSplit } from "./TrainingSplit";
 import type { Split } from "./training.schema";
 
 export default function TrainingPage() {
-  const { template, weekLog, toggleSessionPart, toggleExerciseDone, resetWeek } = useTraining();
-  const [activeSplit, setActiveSplit] = useState<Split>(todaySplit());
+  const {
+    template,
+    weekLog,
+    toggleSessionPart,
+    toggleExerciseDone,
+    toggleCardioBlock,
+    setExerciseSetProgress,
+    recordExerciseLoad,
+    resetWeek,
+    preferences,
+    setPreferences,
+    updatePmExercise,
+    catalog,
+  } = useTraining();
+
+  const [activeSplit, setActiveSplit] = useState<Split>(preferences.activeSplit ?? todaySplit());
+
+  useEffect(() => {
+    setActiveSplit(preferences.activeSplit ?? todaySplit());
+  }, [preferences.activeSplit]);
+
+  const handleSelectSplit = (split: Split) => {
+    setActiveSplit(split);
+    setPreferences({ activeSplit: split });
+  };
 
   const summaryProgress = useMemo(() => trainingProgress(template, weekLog), [template, weekLog]);
 
+  const timeline = useMemo(
+    () =>
+      weekLog
+        .slice()
+        .sort((a, b) => (a.dateISO > b.dateISO ? 1 : -1))
+        .map((log) => ({
+          ...log,
+          label: `Treino ${log.split}`,
+          completed: (log.completedCardio.length > 0 || log.amDone) && (log.pmDone || log.doneExercises.length > 0),
+        })),
+    [weekLog],
+  );
+
   return (
     <div className="app-card">
-      <Section
-        title="Treino semanal"
-        description="Escolha o dia da divisão e marque as partes concluídas."
-        action={
+      <Section title="Treino semanal" description="Escolha o dia da divisão e marque as partes concluídas.">
+        <div className="training-header">
+          <ProgressBar value={summaryProgress} label="Semana concluída" />
           <div className="training-actions">
             <button type="button" onClick={resetWeek} className="training-actions__reset">
               Reiniciar semana
             </button>
-            <Link to="/training/config">Configurar treinos</Link>
+            <Link to="/training/config" className="training-actions__config">
+              Configurar treinos
+            </Link>
           </div>
-        }
-      >
-        <ProgressBar value={summaryProgress} label="Semana concluída" />
+        </div>
+
+        <div className="training-preferences">
+          <label>
+            Estilo das informações
+            <select
+              value={preferences.displayFormat}
+              onChange={(e) => setPreferences({ displayFormat: e.target.value as (typeof preferences.displayFormat) })}
+            >
+              <option value="inline">Compacto (4 x 12 • descanso 60s)</option>
+              <option value="stacked">Detalhado (3 séries · 12 reps)</option>
+            </select>
+          </label>
+          <label className="training-preferences__merge">
+            <input
+              type="checkbox"
+              checked={preferences.mergeParts}
+              onChange={(e) => setPreferences({ mergeParts: e.target.checked })}
+            />
+            Unir cardio e musculação em uma lista
+          </label>
+        </div>
 
         <div className="training-tabs">
           {splitOrder.map((split) => (
@@ -35,7 +91,7 @@ export default function TrainingPage() {
               key={split}
               type="button"
               className={`training-tabs__item ${activeSplit === split ? "training-tabs__item--active" : ""}`}
-              onClick={() => setActiveSplit(split)}
+              onClick={() => handleSelectSplit(split)}
             >
               {`Treino ${split}`}
             </button>
@@ -46,9 +102,43 @@ export default function TrainingPage() {
           split={activeSplit}
           plan={template[activeSplit]}
           log={weekLog.find((log) => log.split === activeSplit)}
+          catalog={catalog}
+          preferences={preferences}
           onTogglePart={toggleSessionPart}
           onToggleExercise={toggleExerciseDone}
+          onToggleCardio={toggleCardioBlock}
+          onSetSetProgress={setExerciseSetProgress}
+          onRecordLoad={recordExerciseLoad}
+          onUpdateExercise={updatePmExercise}
         />
+
+        <div className="training-timeline">
+          <h4>Trilha da semana</h4>
+          <div className="training-timeline__rail">
+            {timeline.map((entry) => {
+              const isActive = entry.split === activeSplit;
+              const status = entry.completed
+                ? "Concluído"
+                : entry.amDone || entry.pmDone
+                ? "Parcial"
+                : "Pendente";
+              return (
+                <button
+                  key={entry.dateISO}
+                  type="button"
+                  className={`training-timeline__item ${entry.completed ? "training-timeline__item--done" : ""} ${isActive ? "training-timeline__item--active" : ""}`}
+                  onClick={() => handleSelectSplit(entry.split)}
+                >
+                  <span className="training-timeline__date">
+                    {new Date(entry.dateISO).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" })}
+                  </span>
+                  <strong>{entry.label}</strong>
+                  <small>{status}</small>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </Section>
     </div>
   );
@@ -56,6 +146,11 @@ export default function TrainingPage() {
 
 const style = new CSSStyleSheet();
 style.replaceSync(`
+.training-header {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
 .training-tabs {
   display: inline-flex;
   gap: 8px;
@@ -63,6 +158,8 @@ style.replaceSync(`
   background: rgba(148, 163, 184, 0.15);
   border-radius: 999px;
   margin: 18px 0;
+  justify-content: center;
+  width: 100%;
 }
 .training-tabs__item {
   background: transparent;
@@ -80,11 +177,76 @@ style.replaceSync(`
 .training-actions {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
 }
 .training-actions__reset {
   background: transparent;
   border: 1px solid rgba(37, 99, 235, 0.25);
   color: #1d4ed8;
+}
+.training-actions__config {
+  border-radius: 999px;
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  padding: 6px 16px;
+}
+.training-preferences {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.training-preferences label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.training-preferences select {
+  flex: 1;
+}
+.training-preferences__merge {
+  font-size: 0.9rem;
+  color: #475569;
+}
+.training-timeline {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.training-timeline h4 {
+  margin: 0;
+}
+.training-timeline__rail {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+.training-timeline__item {
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  padding: 12px;
+  background: rgba(248, 250, 252, 0.8);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+.training-timeline__item--done {
+  border-color: rgba(37, 99, 235, 0.5);
+}
+.training-timeline__item--active {
+  box-shadow: 0 14px 30px -24px rgba(37, 99, 235, 0.6);
+}
+.training-timeline__date {
+  font-size: 0.8rem;
+  color: #64748b;
+  text-transform: capitalize;
+}
+@media (max-width: 640px) {
+  .training-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 `);
 

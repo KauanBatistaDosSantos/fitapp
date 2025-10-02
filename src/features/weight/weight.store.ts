@@ -9,6 +9,8 @@ type WeightState = {
   entries: WeightEntry[];
   updateConfig: (patch: Partial<WeightConfig>) => void;
   addEntry: (kg: number, dateISO?: string) => void;
+  updateEntry: (dateISO: string, kg: number) => void;
+  removeEntry: (dateISO: string) => void;
 };
 
 const configFallback = () => load("weight:config", weightConfigSeed);
@@ -30,6 +32,20 @@ export const useWeight = create<WeightState>((set) => ({
       const entries = [...state.entries.filter((entry) => entry.dateISO !== dateISO), { dateISO, kg }].sort((a, b) =>
         a.dateISO > b.dateISO ? 1 : -1,
       );
+      save("weight:entries", entries);
+      return { entries };
+    }),
+
+  updateEntry: (dateISO, kg) =>
+    set((state) => {
+      const entries = state.entries.map((entry) => (entry.dateISO === dateISO ? { ...entry, kg } : entry));
+      save("weight:entries", entries);
+      return { entries };
+    }),
+
+  removeEntry: (dateISO) =>
+    set((state) => {
+      const entries = state.entries.filter((entry) => entry.dateISO !== dateISO);
       save("weight:entries", entries);
       return { entries };
     }),

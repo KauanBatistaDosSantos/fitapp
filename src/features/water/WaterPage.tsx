@@ -13,16 +13,28 @@ const tabs = [
 type TabKey = (typeof tabs)[number]["key"];
 
 export default function WaterPage() {
-  const { today, config, addEntry, commitToday, resetToday, monthHistory } = useWater();
+  const {
+    today,
+    config,
+    addEntry,
+    commitToday,
+    resetToday,
+    monthHistory,
+    updateTodayEntry,
+    removeTodayEntry,
+    updateHistoryEntry,
+    removeHistoryEntry,
+  } = useWater();
   const [tab, setTab] = useState<TabKey>("today");
 
   return (
     <div className="app-card">
-      <Section
-        title="Consumo de água"
-        description="Registre cada copo e acompanhe sua evolução mensal."
-        action={<Link to="/water/config">Configurar atalhos</Link>}
-      >
+      <Section title="Consumo de água" description="Registre cada copo e acompanhe sua evolução mensal.">
+        <div className="water-page__actions">
+          <Link to="/water/config" className="water-page__config">
+            Configurar atalhos
+          </Link>
+        </div>
         <div className="water-tabs">
           {tabs.map((item) => (
             <button
@@ -43,9 +55,11 @@ export default function WaterPage() {
             onAdd={addEntry}
             onCommit={commitToday}
             onReset={resetToday}
+            onUpdateEntry={updateTodayEntry}
+            onRemoveEntry={removeTodayEntry}
           />
         ) : (
-          <WaterHistory history={monthHistory} target={config.targetML} />
+          <WaterHistory history={monthHistory} onEdit={updateHistoryEntry} onDelete={removeHistoryEntry} />
         )}
       </Section>
     </div>
@@ -74,6 +88,16 @@ style.replaceSync(`
   background: white;
   color: #1d4ed8;
   box-shadow: 0 10px 18px -16px rgba(37, 99, 235, 0.5);
+}
+.water-page__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+.water-page__config {
+  border-radius: 999px;
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  padding: 6px 16px;
 }
 `);
 

@@ -28,7 +28,7 @@ export function DietItem({ meal, dish, item, onToggle }: DietItemProps) {
         onClick={() => onToggle(meal, item.id)}
       >
         <div className="diet-item__icon" aria-hidden>
-          {label.icon}
+          {dish?.imageUrl ? <img src={dish.imageUrl} alt="" /> : label.icon}
         </div>
         <div className="diet-item__info">
           <span className="diet-item__name">{name}</span>
@@ -68,13 +68,19 @@ style.replaceSync(`
   border-color: rgba(37, 99, 235, 0.6);
 }
 .diet-item__icon {
-  height: 36px;
-  width: 36px;
+  height: 40px;
+  width: 40px;
   border-radius: 12px;
   background: rgba(148, 163, 184, 0.2);
   display: grid;
   place-items: center;
   font-size: 1.1rem;
+  overflow: hidden;
+}
+.diet-item__icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .diet-item__info {
   display: flex;
@@ -100,7 +106,3 @@ style.replaceSync(`
   font-weight: 700;
 }
 `);
-
-if (typeof document !== "undefined" && !document.adoptedStyleSheets.includes(style)) {
-  document.adoptedStyleSheets = [...document.adoptedStyleSheets, style];
-}

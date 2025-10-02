@@ -7,19 +7,32 @@ type DietDayViewProps = {
   day: DailyDietProgress;
   dishes: Dish[];
   onToggle: (meal: MealName, itemId: string) => void;
+  onToggleMeal: (meal: MealName) => void;
 };
 
 type ExpandState = Record<MealName, boolean>;
 
 const defaultExpanded = mealOrder.reduce((acc, meal) => ({ ...acc, [meal]: meal !== "snack1" }), {} as ExpandState);
 
-export function DietDayView({ day, dishes, onToggle }: DietDayViewProps) {
+const mealPalette: Record<MealName, string> = {
+  breakfast: "#fee2e2",
+  snack1: "#fef3c7",
+  lunch: "#dcfce7",
+  snack2: "#ede9fe",
+  dinner: "#e0f2fe",
+};
+
+export function DietDayView({ day, dishes, onToggle, onToggleMeal }: DietDayViewProps) {
   const [expanded, setExpanded] = useState<ExpandState>(defaultExpanded);
-  const formattedDate = useMemo(() => new Date(day.dateISO).toLocaleDateString("pt-BR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "2-digit",
-  }), [day.dateISO]);
+  const formattedDate = useMemo(
+    () =>
+      new Date(day.dateISO).toLocaleDateString("pt-BR", {
+        weekday: "long",
+        day: "2-digit",
+        month: "2-digit",
+      }),
+    [day.dateISO],
+  );
 
   return (
     <div className="diet-day">
@@ -35,9 +48,11 @@ export function DietDayView({ day, dishes, onToggle }: DietDayViewProps) {
           const label = mealLabels[meal];
           const items = day.meals[meal] ?? [];
           const isOpen = expanded[meal];
+          const completed = items.filter((item) => item.checked).length;
+          const total = items.length;
 
           return (
-            <section key={meal} className="diet-day__meal">
+            <section key={meal} className={`diet-day__meal diet-day__meal--${meal}`} style={{ backgroundColor: mealPalette[meal] }}>
               <button
                 type="button"
                 className="diet-day__mealHeader"
@@ -48,7 +63,9 @@ export function DietDayView({ day, dishes, onToggle }: DietDayViewProps) {
                 </div>
                 <div className="diet-day__mealInfo">
                   <span className="diet-day__mealTitle">{label.title}</span>
-                  <span className="diet-day__mealCount">{items.length} item(s)</span>
+                  <span className="diet-day__mealCount">
+                    {completed}/{total} item(s)
+                  </span>
                 </div>
                 <span className={`diet-day__chevron ${isOpen ? "diet-day__chevron--open" : ""}`} aria-hidden>
                   {isOpen ? "▲" : "▼"}
@@ -56,21 +73,28 @@ export function DietDayView({ day, dishes, onToggle }: DietDayViewProps) {
               </button>
 
               {isOpen && (
-                <ul className="diet-day__items">
-                  {items.length === 0 ? (
-                    <li className="diet-day__empty">Nenhum prato cadastrado para este horário.</li>
-                  ) : (
-                    items.map((item) => (
-                      <DietItem
-                        key={item.id}
-                        meal={meal}
-                        item={item}
-                        dish={resolveDish(dishes, item.dishId)}
-                        onToggle={onToggle}
-                      />
-                    ))
-                  )}
-                </ul>
+                <div className="diet-day__panel">
+                  <div className="diet-day__panelActions">
+                    <button type="button" onClick={() => onToggleMeal(meal)}>
+                      {completed === total && total > 0 ? "Desmarcar refeição" : "Concluir refeição"}
+                    </button>
+                  </div>
+                  <ul className="diet-day__items">
+                    {items.length === 0 ? (
+                      <li className="diet-day__empty">Nenhum prato cadastrado para este horário.</li>
+                    ) : (
+                      items.map((item) => (
+                        <DietItem
+                          key={item.id}
+                          meal={meal}
+                          item={item}
+                          dish={resolveDish(dishes, item.dishId)}
+                          onToggle={onToggle}
+                        />
+                      ))
+                    )}
+                  </ul>
+                </div>
               )}
             </section>
           );
@@ -100,11 +124,13 @@ style.replaceSync(`
   display: flex;
   flex-direction: column;
   gap: 8px;
+  border-radius: 18px;
+  padding: 12px;
 }
 .diet-day__mealHeader {
   width: 100%;
   border-radius: 16px;
-  background: white;
+  background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(148, 163, 184, 0.35);
   padding: 16px;
   display: flex;
@@ -117,10 +143,10 @@ style.replaceSync(`
   border-color: rgba(37, 99, 235, 0.45);
 }
 .diet-day__mealIcon {
-  height: 40px;
-  width: 40px;
+  height: 44px;
+  width: 44px;
   border-radius: 14px;
-  background: rgba(96, 165, 250, 0.2);
+  background: rgba(255, 255, 255, 0.8);
   display: grid;
   place-items: center;
   font-size: 1.2rem;
@@ -146,12 +172,22 @@ style.replaceSync(`
 .diet-day__chevron--open {
   transform: rotate(180deg);
 }
+.diet-day__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 4px 10px 4px;
+}
+.diet-day__panelActions {
+  display: flex;
+  justify-content: flex-end;
+}
 .diet-day__items {
   display: flex;
   flex-direction: column;
   gap: 10px;
   margin: 0;
-  padding: 0 4px 10px 4px;
+  padding: 0;
 }
 .diet-day__empty {
   font-size: 0.9rem;

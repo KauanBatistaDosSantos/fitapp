@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Section } from "@/components/Section";
@@ -13,14 +13,24 @@ export default function TrainingConfigPage() {
     cardioCatalog,
     template,
     addCatalogExercise,
+    updateCatalogExercise,
+    removeCatalogExercise,
     addCardioKind,
     addAmBlock,
     addPmExercise,
     removeAmBlock,
     removePmExercise,
+    updatePmExercise,
+    movePmExercise,
   } = useTraining();
 
-  const [newExercise, setNewExercise] = useState({ name: "", muscle: "" });
+  const [newExercise, setNewExercise] = useState({
+    name: "",
+    muscle: "",
+    gifUrl: "",
+    secondary: "",
+    substitutions: [] as string[],
+  });
   const [newCardio, setNewCardio] = useState("");
   const [selectedSplit, setSelectedSplit] = useState<Split>("A");
   const [cardioKind, setCardioKind] = useState(cardioCatalog[0]?.kind ?? "Zumba");
@@ -29,12 +39,35 @@ export default function TrainingConfigPage() {
   const [sets, setSets] = useState("4");
   const [reps, setReps] = useState("12");
   const [rest, setRest] = useState("60");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingForm, setEditingForm] = useState({ name: "", muscle: "", gifUrl: "", secondary: "", substitutions: [] as string[] });
+
+  const muscleOptions = useMemo(() => {
+    const set = new Set<string>();
+    catalog.forEach((item) => {
+      if (item.muscle) set.add(item.muscle);
+      item.muscles?.forEach((muscle) => muscle && set.add(muscle));
+      item.secondaryMuscles?.forEach((muscle) => muscle && set.add(muscle));
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [catalog]);
 
   const handleAddExercise = (evt: FormEvent) => {
     evt.preventDefault();
     if (!newExercise.name.trim() || !newExercise.muscle.trim()) return;
-    addCatalogExercise(newExercise.name.trim(), newExercise.muscle.trim());
-    setNewExercise({ name: "", muscle: "" });
+    const secondary = newExercise.secondary
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    addCatalogExercise({
+      name: newExercise.name.trim(),
+      muscle: newExercise.muscle.trim(),
+      gifUrl: newExercise.gifUrl.trim() || undefined,
+      secondaryMuscles: secondary,
+      substitutions: newExercise.substitutions,
+      muscles: [newExercise.muscle.trim(), ...secondary],
+    });
+    setNewExercise({ name: "", muscle: "", gifUrl: "", secondary: "", substitutions: [] });
   };
 
   const handleAddCardio = (evt: FormEvent) => {
@@ -60,6 +93,37 @@ export default function TrainingConfigPage() {
     setRest("60");
   };
 
+  const handleStartEdit = (id: string) => {
+    const item = catalog.find((entry) => entry.id === id);
+    if (!item) return;
+    setEditingId(id);
+    setEditingForm({
+      name: item.name,
+      muscle: item.muscle ?? "",
+      gifUrl: item.gifUrl ?? "",
+      secondary: (item.secondaryMuscles ?? []).join(", "),
+      substitutions: item.substitutions ?? [],
+    });
+  };
+
+  const handleUpdateCatalog = (evt: FormEvent) => {
+    evt.preventDefault();
+    if (!editingId) return;
+    const secondary = editingForm.secondary
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    updateCatalogExercise(editingId, {
+      name: editingForm.name.trim() || "Exercício",
+      muscle: editingForm.muscle.trim(),
+      gifUrl: editingForm.gifUrl.trim() || undefined,
+      secondaryMuscles: secondary,
+      substitutions: editingForm.substitutions,
+      muscles: [editingForm.muscle.trim(), ...secondary],
+    });
+    setEditingId(null);
+  };
+
   return (
     <div className="app-card">
       <Section
@@ -80,20 +144,142 @@ export default function TrainingConfigPage() {
             <label>
               Grupo muscular
               <input
+                list="muscle-options"
                 value={newExercise.muscle}
                 onChange={(e) => setNewExercise((prev) => ({ ...prev, muscle: e.target.value }))}
                 required
               />
             </label>
           </div>
+          <label>
+            Músculos secundários (separados por vírgula)
+            <input
+              value={newExercise.secondary}
+              onChange={(e) => setNewExercise((prev) => ({ ...prev, secondary: e.target.value }))}
+              placeholder="Ombros, tríceps"
+            />
+          </label>
+          <label>
+            GIF de referência
+            <input
+              value={newExercise.gifUrl}
+              onChange={(e) => setNewExercise((prev) => ({ ...prev, gifUrl: e.target.value }))}
+              placeholder="https://..."
+            />
+          </label>
+          <label>
+            Sugestões de substituição
+            <select
+              multiple
+              value={newExercise.substitutions}
+              onChange={(e) =>
+                setNewExercise((prev) => ({
+                  ...prev,
+                  substitutions: Array.from(e.target.selectedOptions).map((option) => option.value),
+                }))
+              }
+            >
+              {catalog.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <button type="submit">Adicionar exercício</button>
         </form>
 
+        <datalist id="muscle-options">
+          {muscleOptions.map((muscle) => (
+            <option key={muscle} value={muscle} />
+          ))}
+        </datalist>
+
         <div className="training-config__catalog">
           {catalog.map((item) => (
-            <span key={item.id}>
-              {item.name} · {item.muscle}
-            </span>
+            <div key={item.id} className="training-config__catalogItem">
+              <div>
+                <strong>{item.name}</strong>
+                <span className="training-config__catalogSubtitle">{[item.muscle, ...(item.secondaryMuscles ?? [])].filter(Boolean).join(", ")}</span>
+                {item.gifUrl && (
+                  <a href={item.gifUrl} target="_blank" rel="noreferrer" className="training-config__catalogLink">
+                    Ver demonstração
+                  </a>
+                )}
+              </div>
+              <div className="training-config__catalogActions">
+                <button type="button" onClick={() => handleStartEdit(item.id)}>
+                  Editar
+                </button>
+                <button type="button" className="training-config__catalogRemove" onClick={() => removeCatalogExercise(item.id)}>
+                  Remover
+                </button>
+              </div>
+              {editingId === item.id && (
+                <form className="training-config__editForm" onSubmit={handleUpdateCatalog}>
+                  <label>
+                    Nome
+                    <input
+                      value={editingForm.name}
+                      onChange={(e) => setEditingForm((prev) => ({ ...prev, name: e.target.value }))}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Grupo principal
+                    <input
+                      list="muscle-options"
+                      value={editingForm.muscle}
+                      onChange={(e) => setEditingForm((prev) => ({ ...prev, muscle: e.target.value }))}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Músculos secundários
+                    <input
+                      value={editingForm.secondary}
+                      onChange={(e) => setEditingForm((prev) => ({ ...prev, secondary: e.target.value }))}
+                      placeholder="Ombros, tríceps"
+                    />
+                  </label>
+                  <label>
+                    GIF de referência
+                    <input
+                      value={editingForm.gifUrl}
+                      onChange={(e) => setEditingForm((prev) => ({ ...prev, gifUrl: e.target.value }))}
+                      placeholder="https://..."
+                    />
+                  </label>
+                  <label>
+                    Substituições sugeridas
+                    <select
+                      multiple
+                      value={editingForm.substitutions}
+                      onChange={(e) =>
+                        setEditingForm((prev) => ({
+                          ...prev,
+                          substitutions: Array.from(e.target.selectedOptions).map((option) => option.value),
+                        }))
+                      }
+                    >
+                      {catalog
+                        .filter((option) => option.id !== item.id)
+                        .map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <div className="training-config__editActions">
+                    <button type="submit">Salvar alterações</button>
+                    <button type="button" onClick={() => setEditingId(null)}>
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           ))}
         </div>
 
@@ -119,40 +305,6 @@ export default function TrainingConfigPage() {
             </select>
           </label>
           <form className="training-config__subform" onSubmit={handleAddCardioBlock}>
-            <h4>Parte 1 · Cardio</h4>
-            <label>
-              Modalidade
-              <select value={cardioKind} onChange={(e) => setCardioKind(e.target.value)}>
-                {cardioCatalog.map((item) => (
-                  <option key={item.id} value={item.kind}>
-                    {item.kind}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Minutos
-              <input value={cardioMinutes} onChange={(e) => setCardioMinutes(e.target.value)} type="number" min={5} step={5} />
-            </label>
-            <button type="submit" disabled={cardioCatalog.length === 0}>
-              Adicionar cardio
-            </button>
-          </form>
-          <form className="training-config__subform" onSubmit={handleAddPmExercise}>
-            <h4>Parte 2 · Musculação</h4>
-            <label>
-              Exercício
-              <select value={exerciseId} onChange={(e) => setExerciseId(e.target.value)}>
-                <option value="" disabled>
-                  Escolha um exercício
-                </option>
-                {catalog.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
             <label>
               Séries
               <input value={sets} onChange={(e) => setSets(e.target.value)} type="number" min={1} max={10} />
@@ -177,8 +329,11 @@ export default function TrainingConfigPage() {
               key={split}
               split={split}
               plan={template[split]}
+              catalog={catalog}
               onRemoveCardio={(id) => removeAmBlock(split, id)}
               onRemoveExercise={(id) => removePmExercise(split, id)}
+              onUpdateExercise={(id, payload) => updatePmExercise(split, id, payload)}
+              onMoveExercise={(id, direction) => movePmExercise(split, id, direction)}
             />
           ))}
         </div>
@@ -205,16 +360,55 @@ style.replaceSync(`
   gap: 6px;
 }
 .training-config__catalog {
+  display: grid;
+  gap: 12px;
+}
+.training-config__catalogItem {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(248, 250, 252, 0.7);
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 10px;
 }
-.training-config__catalog span {
-  background: white;
-  border-radius: 12px;
-  padding: 6px 12px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
+.training-config__catalogSubtitle {
+  display: block;
   font-size: 0.85rem;
+  color: #475569;
+}
+.training-config__catalogLink {
+  font-size: 0.8rem;
+  color: #1d4ed8;
+}
+.training-config__catalogActions {
+  display: flex;
+  gap: 8px;
+}
+.training-config__catalogActions button {
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 4px 10px;
+}
+.training-config__catalogRemove {
+  background: rgba(239, 68, 68, 0.1);
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.training-config__editForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.training-config__editForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.training-config__editActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 .training-config__grid--assign {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

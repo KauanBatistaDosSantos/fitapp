@@ -5,9 +5,12 @@ export const MealName = z.enum(["breakfast","snack1","lunch","snack2","dinner"])
 export type MealName = z.infer<typeof MealName>;
 
 export const Dish = z.object({
-  id: z.string(), name: z.string(),
-  unit: z.string().default("porção"), kcal: z.number().optional(),
-  notes: z.string().optional()
+  id: z.string(),
+  name: z.string(),
+  unit: z.string().default("porção"),
+  kcal: z.number().optional(),
+  notes: z.string().optional(),
+  imageUrl: z.string().url().optional(),
 });
 export type Dish = z.infer<typeof Dish>;
 
@@ -33,4 +36,3 @@ export const DailyDietProgress = z.object({
     id: z.string(), dishId: z.string(), qty: z.number(), checked: z.boolean()
   })))
 });
-export type DailyDietProgress = z.infer<typeof DailyDietProgress>;

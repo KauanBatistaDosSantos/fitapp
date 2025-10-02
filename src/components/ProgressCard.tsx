@@ -10,6 +10,7 @@ type ProgressCardProps = {
 };
 
 export function ProgressCard({ title, subtitle, value, to, accentColor }: ProgressCardProps) {
+  const pct = Math.round(Math.min(1, Math.max(0, value)) * 100);
   return (
     <Link to={to} className="progress-card">
       <div className="progress-card__header">
@@ -19,7 +20,8 @@ export function ProgressCard({ title, subtitle, value, to, accentColor }: Progre
         </div>
         <span className="progress-card__chevron">›</span>
       </div>
-      <ProgressBar value={value} color={accentColor} />
+      <p className="progress-card__value">Progresso: {pct}%</p>
+      <ProgressBar value={value} color={accentColor} showLabel={false} />
     </Link>
   );
 }
@@ -61,6 +63,12 @@ style.replaceSync(`
   margin-left: auto;
   color: #94a3b8;
   font-size: 1.4rem;
+}
+.progress-card__value {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
 }
 `);
 

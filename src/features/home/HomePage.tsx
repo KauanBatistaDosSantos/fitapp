@@ -15,6 +15,8 @@ export default function HomePage() {
         <ProgressCard title="Treino semanal" value={trainingProgress} to="/training" />
         <ProgressCard title="Meta de peso" value={weightProgress} to="/weight" />
       </div>
+
+      <footer className="home__footer">Idealizado por Kauan B.</footer>
     </div>
   );
 }
@@ -34,6 +36,12 @@ style.replaceSync(`
   display: grid;
   gap: 18px;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.home__footer {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #64748b;
 }
 `);
 

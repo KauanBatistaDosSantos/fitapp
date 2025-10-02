@@ -1,5 +1,5 @@
 import { isoDate } from "@/lib/date";
-import type { TrainingTemplate, Split, Exercise } from "./training.schema";
+import type { TrainingTemplate, Split, Exercise, TrainingLog } from "./training.schema";
 
 type ExerciseCatalogSeed = { id: string; name: string; muscle: string };
 type CardioCatalogSeed = { id: string; kind: string };
@@ -25,12 +25,20 @@ export const cardioCatalogSeed: CardioCatalogSeed[] = [
 ];
 
 const cardio = (kind: CardioCatalogSeed["kind"], minutes: number, id: string) => ({ id, kind, minutes });
-const exercise = (id: string, name: string, sets: number, reps: string, restSec = 60): Exercise => ({
+const exercise = (
+  id: string,
+  name: string,
+  sets: number,
+  reps: string,
+  restSec = 60,
+  extras: Partial<Exercise> = {},
+): Exercise => ({
   id,
   name,
   sets,
   reps,
   restSec,
+  ...extras,
 });
 
 export const trainingTemplateSeed: TrainingTemplate = {
@@ -38,54 +46,68 @@ export const trainingTemplateSeed: TrainingTemplate = {
     split: "A",
     am: [cardio("Zumba", 40, "cardio-a-1")],
     pm: [
-      exercise("tr-ex-1", "Supino reto com halter", 4, "10-12"),
-      exercise("tr-ex-2", "Crucifixo com halter", 3, "12"),
-      exercise("tr-ex-3", "Desenvolvimento com halter", 3, "12"),
+      exercise("tr-ex-1", "Supino reto com halter", 4, "10-12", 60, {
+        muscles: ["Peito"],
+        gifUrl: "https://media.tenor.com/ZiN4wQ4xQg8AAAAC/dumbbell-bench-press.gif",
+      }),
+      exercise("tr-ex-2", "Crucifixo com halter", 3, "12", 45, { muscles: ["Peito"] }),
+      exercise("tr-ex-3", "Desenvolvimento com halter", 3, "12", 60, { muscles: ["Ombros"] }),
     ],
   },
   B: {
     split: "B",
     am: [cardio("Esteira", 35, "cardio-b-1")],
     pm: [
-      exercise("tr-ex-4", "Puxada na frente", 4, "10-12"),
-      exercise("tr-ex-5", "Remada unilateral", 3, "12"),
-      exercise("tr-ex-6", "Rosca direta", 3, "12"),
+      exercise("tr-ex-4", "Puxada na frente", 4, "10-12", 60, { muscles: ["Costas"] }),
+      exercise("tr-ex-5", "Remada unilateral", 3, "12", 60, { muscles: ["Costas"] }),
+      exercise("tr-ex-6", "Rosca direta", 3, "12", 45, { muscles: ["Bíceps"] }),
     ],
   },
   C: {
     split: "C",
     am: [cardio("Bike", 40, "cardio-c-1")],
     pm: [
-      exercise("tr-ex-7", "Agachamento livre", 4, "8-10"),
-      exercise("tr-ex-8", "Leg press", 4, "12"),
-      exercise("tr-ex-9", "Elevação lateral", 3, "12"),
+      exercise("tr-ex-7", "Agachamento livre", 4, "8-10", 90, {
+        muscles: ["Pernas"],
+        gifUrl: "https://media.tenor.com/7wP-vnDn6XoAAAAd/barbell-squat.gif",
+      }),
+      exercise("tr-ex-8", "Leg press", 4, "12", 75, { muscles: ["Pernas"] }),
+      exercise("tr-ex-9", "Elevação lateral", 3, "12", 45, { muscles: ["Ombros"] }),
     ],
   },
   D: {
     split: "D",
     am: [cardio("Esteira", 30, "cardio-d-1")],
     pm: [
-      exercise("tr-ex-10", "Supino reto com halter", 4, "8-10"),
-      exercise("tr-ex-11", "Crucifixo com halter", 3, "12"),
-      exercise("tr-ex-12", "Tríceps testa", 3, "12"),
+      exercise("tr-ex-10", "Supino reto com halter", 4, "8-10", 75, { muscles: ["Peito"] }),
+      exercise("tr-ex-11", "Crucifixo com halter", 3, "12", 45, { muscles: ["Peito"] }),
+      exercise("tr-ex-12", "Tríceps testa", 3, "12", 60, { muscles: ["Tríceps"] }),
     ],
   },
   E: {
     split: "E",
     am: [cardio("Corda", 20, "cardio-e-1")],
     pm: [
-      exercise("tr-ex-13", "Remada unilateral", 3, "12"),
-      exercise("tr-ex-14", "Leg press", 4, "12"),
-      exercise("tr-ex-15", "Elevação lateral", 3, "12"),
+      exercise("tr-ex-13", "Remada unilateral", 3, "12", 60, { muscles: ["Costas"] }),
+      exercise("tr-ex-14", "Leg press", 4, "12", 75, { muscles: ["Pernas"] }),
+      exercise("tr-ex-15", "Elevação lateral", 3, "12", 45, { muscles: ["Ombros"] }),
     ],
   },
 };
 
-export function buildWeekLog(reference: Date = new Date()) {
+export function buildWeekLog(reference: Date = new Date()): TrainingLog[] {
   const base = new Date(reference);
   return ("ABCDE".split("") as Split[]).map((split, index) => {
     const date = new Date(base);
     date.setDate(base.getDate() + index);
-    return { dateISO: isoDate(date), split, amDone: false, pmDone: false, doneExercises: [] };
+    return {
+      dateISO: isoDate(date),
+      split,
+      amDone: false,
+      pmDone: false,
+      doneExercises: [],
+      completedCardio: [],
+      setProgress: {},
+    };
   });
 }

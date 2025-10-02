@@ -12,17 +12,30 @@ type DishDraft = {
   unit: string;
   kcal: string;
   notes: string;
+  imageUrl: string;
 };
 
-const defaultDish: DishDraft = { name: "", unit: "porção", kcal: "", notes: "" };
+const defaultDish: DishDraft = { name: "", unit: "porção", kcal: "", notes: "", imageUrl: "" };
 
 export default function DietConfigPage() {
-  const { catalog, weekly, addDish, assignDishToDay, regenerateTodayFromWeekly } = useDiet();
+  const {
+    catalog,
+    weekly,
+    addDish,
+    updateDish,
+    removeDish,
+    assignDishToDay,
+    swapMeals,
+    regenerateTodayFromWeekly,
+  } = useDiet();
   const [dishForm, setDishForm] = useState<DishDraft>(defaultDish);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [dow, setDow] = useState<keyof typeof weekly>("mon");
   const [meal, setMeal] = useState<MealName>("breakfast");
   const [dishId, setDishId] = useState<string>(catalog[0]?.id ?? "");
   const [qty, setQty] = useState("1");
+  const [swapFrom, setSwapFrom] = useState<MealName>("lunch");
+  const [swapTo, setSwapTo] = useState<MealName>("dinner");
 
   const weeklyPreview = useMemo(() => weekly[dow]?.meals ?? {}, [weekly, dow]);
 
@@ -34,6 +47,7 @@ export default function DietConfigPage() {
       unit: dishForm.unit.trim() || "porção",
       kcal: dishForm.kcal ? Number(dishForm.kcal) : undefined,
       notes: dishForm.notes.trim() || undefined,
+      imageUrl: dishForm.imageUrl.trim() || undefined,
     });
     setDishForm(defaultDish);
   };
@@ -45,6 +59,33 @@ export default function DietConfigPage() {
     setQty("1");
   };
 
+  const handleEditSubmit = (evt: FormEvent) => {
+    evt.preventDefault();
+    if (!editingId) return;
+    updateDish(editingId, {
+      name: dishForm.name.trim() || "Prato",
+      unit: dishForm.unit.trim() || "porção",
+      kcal: dishForm.kcal ? Number(dishForm.kcal) : undefined,
+      notes: dishForm.notes.trim() || undefined,
+      imageUrl: dishForm.imageUrl.trim() || undefined,
+    });
+    setEditingId(null);
+    setDishForm(defaultDish);
+  };
+
+  const startEdit = (id: string) => {
+    const dish = catalog.find((item) => item.id === id);
+    if (!dish) return;
+    setEditingId(id);
+    setDishForm({
+      name: dish.name,
+      unit: dish.unit,
+      kcal: dish.kcal != null ? String(dish.kcal) : "",
+      notes: dish.notes ?? "",
+      imageUrl: dish.imageUrl ?? "",
+    });
+  };
+
   return (
     <div className="app-card">
       <Section
@@ -52,7 +93,7 @@ export default function DietConfigPage() {
         description="Cadastre refeições que você poderá reutilizar em qualquer dia da semana."
         action={<Link to="/diet">Voltar para hoje</Link>}
       >
-        <form className="diet-form" onSubmit={handleDishSubmit}>
+        <form className="diet-form" onSubmit={editingId ? handleEditSubmit : handleDishSubmit}>
           <div className="diet-form__grid">
             <label>
               Nome do prato
@@ -88,7 +129,20 @@ export default function DietConfigPage() {
               placeholder="Ingredientes, substituições etc."
             />
           </label>
-          <button type="submit">Adicionar prato</button>
+          <label>
+            Foto (URL)
+            <input
+              value={dishForm.imageUrl}
+              onChange={(e) => setDishForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
+              placeholder="https://..."
+            />
+          </label>
+          <button type="submit">{editingId ? "Salvar alterações" : "Adicionar prato"}</button>
+          {editingId && (
+            <button type="button" className="diet-form__cancel" onClick={() => { setEditingId(null); setDishForm(defaultDish); }}>
+              Cancelar edição
+            </button>
+          )}
         </form>
 
         {catalog.length === 0 ? (
@@ -97,12 +151,23 @@ export default function DietConfigPage() {
           <ul className="diet-catalog">
             {catalog.map((dish) => (
               <li key={dish.id}>
-                <strong>{dish.name}</strong>
-                <span>
-                  {dish.unit}
-                  {dish.kcal ? ` · ${dish.kcal} kcal` : ""}
-                </span>
-                {dish.notes && <span className="diet-catalog__notes">{dish.notes}</span>}
+                {dish.imageUrl && <img src={dish.imageUrl} alt="" className="diet-catalog__thumb" />}
+                <div>
+                  <strong>{dish.name}</strong>
+                  <span>
+                    {dish.unit}
+                    {dish.kcal ? ` · ${dish.kcal} kcal` : ""}
+                  </span>
+                  {dish.notes && <span className="diet-catalog__notes">{dish.notes}</span>}
+                </div>
+                <div className="diet-catalog__actions">
+                  <button type="button" onClick={() => startEdit(dish.id)}>
+                    Editar
+                  </button>
+                  <button type="button" className="diet-catalog__delete" onClick={() => removeDish(dish.id)}>
+                    Excluir
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -129,16 +194,6 @@ export default function DietConfigPage() {
               </select>
             </label>
             <label>
-              Refeição
-              <select value={meal} onChange={(e) => setMeal(e.target.value as MealName)}>
-                {mealOrder.map((m) => (
-                  <option key={m} value={m}>
-                    {mealLabels[m].title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
               Prato
               <select value={dishId} onChange={(e) => setDishId(e.target.value)}>
                 <option value="" disabled>
@@ -159,6 +214,33 @@ export default function DietConfigPage() {
           <button type="submit" disabled={!dishId}>
             Adicionar ao plano
           </button>
+        </form>
+
+        <form
+          className="diet-swap"
+          onSubmit={(evt) => {
+            evt.preventDefault();
+            if (swapFrom === swapTo) return;
+            swapMeals(dow, swapFrom, swapTo);
+          }}
+        >
+          <span>Trocar refeições de {weekDayLabel(dow)}:</span>
+          <select value={swapFrom} onChange={(e) => setSwapFrom(e.target.value as MealName)}>
+            {mealOrder.map((m) => (
+              <option key={m} value={m}>
+                {mealLabels[m].title}
+              </option>
+            ))}
+          </select>
+          <span>com</span>
+          <select value={swapTo} onChange={(e) => setSwapTo(e.target.value as MealName)}>
+            {mealOrder.map((m) => (
+              <option key={m} value={m}>
+                {mealLabels[m].title}
+              </option>
+            ))}
+          </select>
+          <button type="submit">Trocar</button>
         </form>
 
         <div className="diet-week-preview">
@@ -209,71 +291,82 @@ style.replaceSync(`
 .diet-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 12px;
+  margin-bottom: 20px;
 }
 .diet-form__grid {
   display: grid;
   gap: 16px;
 }
-.diet-form__grid--assign {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-.diet-form__grid label,
-.diet-form label {
+.diet-form__grid label {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-weight: 600;
-  color: #1f2937;
+}
+.diet-form__cancel {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.35);
 }
 .diet-catalog {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 .diet-catalog li {
-  background: rgba(255, 255, 255, 0.85);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 16px;
-  padding: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  padding: 12px;
+  background: rgba(248, 250, 252, 0.8);
 }
-.diet-catalog span {
-  font-size: 0.85rem;
-  color: #475569;
+.diet-catalog__thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  object-fit: cover;
 }
 .diet-catalog__notes {
+  display: block;
   font-size: 0.8rem;
   color: #64748b;
 }
-.diet-week-preview {
-  border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  padding: 18px;
-  background: rgba(248, 250, 252, 0.75);
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.diet-week-preview h3 {
-  margin: 0;
-}
-.diet-week-preview__meal {
+.diet-catalog__actions {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.diet-week-preview__meal ul {
-  margin: 0;
-  padding-left: 18px;
-  color: #1f2937;
+.diet-catalog__delete {
+  color: #b91c1c;
+}
+.diet-form__grid--assign {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  align-items: start;
+}
+.diet-week-preview {
+  margin-top: 24px;
+  display: grid;
+  gap: 16px;
+}
+.diet-week-preview__meal {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(248, 250, 252, 0.7);
 }
 .diet-week-preview__empty {
+  display: block;
   color: #94a3b8;
   font-size: 0.9rem;
+}
+.diet-swap {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 16px 0;
 }
 `);
 

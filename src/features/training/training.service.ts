@@ -28,9 +28,18 @@ export function trainingProgress(template: TrainingTemplate, weekLog: TrainingLo
 }
 
 export function sessionProgress(plan: { am: CardioBlock[]; pm: Exercise[] }, log?: TrainingLog) {
-  const total = (plan.am.length > 0 ? 1 : 0) + (plan.pm.length > 0 ? 1 : 0);
-  const completed = (log?.amDone ? 1 : 0) + (log?.pmDone ? 1 : 0);
-  return total === 0 ? 0 : completed / total;
+  const cardioTotal = plan.am.length;
+  const cardioDone = Math.min(cardioTotal, log?.completedCardio.length ?? 0);
+  const pmTotalSets = plan.pm.reduce((acc, ex) => acc + ex.sets, 0);
+  const pmDoneSets = plan.pm.reduce((acc, ex) => {
+    if (!log) return acc;
+    const completedSets = log.setProgress[ex.id] ?? (log.doneExercises.includes(ex.id) ? ex.sets : 0);
+    return acc + Math.min(ex.sets, completedSets);
+  }, 0);
+  const totalUnits = cardioTotal + pmTotalSets;
+  const completedUnits = cardioDone + pmDoneSets;
+  if (totalUnits === 0) return 0;
+  return completedUnits / totalUnits;
 }
 
 export function isToday(log: TrainingLog) {

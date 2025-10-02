@@ -4,20 +4,23 @@ type ProgressBarProps = {
   value: number; // 0 - 1
   label?: string;
   color?: string;
+  showLabel?: boolean;
 };
 
 function clamp(v: number) {
   return Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0));
 }
 
-export const ProgressBar = memo(function ProgressBar({ value, label, color }: ProgressBarProps) {
+export const ProgressBar = memo(function ProgressBar({ value, label, color, showLabel = true }: ProgressBarProps) {
   const pct = Math.round(clamp(value) * 100);
   return (
     <div className="progress">
-      <div className="progress__label">
-        <span>{label ?? "Progresso"}</span>
-        <span>{pct}%</span>
-      </div>
+      {showLabel && (
+        <div className="progress__label">
+          <span>{label ?? "Progresso"}</span>
+          <span>{pct}%</span>
+        </div>
+      )}
       <div className="progress__track">
         <div className="progress__fill" style={{ width: `${pct}%`, backgroundColor: color ?? "#2563eb" }} />
       </div>
@@ -40,7 +43,7 @@ const styles: InlineStyles = {
   },
   ".progress__track": {
     width: "100%",
-    height: "12px",
+    height: "16px",
     background: "rgba(148, 163, 184, 0.3)",
     borderRadius: "999px",
     overflow: "hidden",

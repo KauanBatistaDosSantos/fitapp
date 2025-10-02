@@ -1,5 +1,4 @@
 import { Link, Outlet, ScrollRestoration, useLocation } from "react-router-dom";
-import { clsx } from "clsx";
 import "./App.css";
 
 const TITLES: Record<string, string> = {
@@ -32,12 +31,11 @@ function Header() {
           <h1 className="app-header-title">{title}</h1>
         </div>
         <div className="app-header-spacer" />
-        <Link
-          to="/"
-          className={clsx("app-home-link", isHome && "app-home-link--disabled")}
-        >
-          Início
-        </Link>
+        {!isHome && (
+          <Link to="/" className="app-home-link" aria-label="Ir para início">
+            🏠 Início
+          </Link>
+        )}
       </div>
     </header>
   );
