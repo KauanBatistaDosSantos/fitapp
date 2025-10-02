@@ -1,42 +1,102 @@
-#root {
-  max-width: 1280px;
+.app-shell {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+  color: #0f172a;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(6px);
+  background: rgba(248, 250, 252, 0.9);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.app-header-inner {
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  max-width: 960px;
+  padding: 0 16px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.app-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  width: 36px;
+  border-radius: 999px;
+  background: white;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+  color: #334155;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+.app-header-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-header-kicker {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.app-header-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.app-header-spacer {
+  flex: 1;
+}
+
+.app-home-link {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.app-home-link:hover {
+  color: #1f2937;
+}
+
+.app-home-link--disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.app-main {
+  flex: 1;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.app-card {
+  background: white;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 18px 40px -24px rgba(15, 23, 42, 0.35);
+}
+
+@media (min-width: 768px) {
+  .app-main {
+    padding: 48px 24px 96px;
   }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
 }

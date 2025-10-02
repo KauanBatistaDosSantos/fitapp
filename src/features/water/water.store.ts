@@ -1,42 +1,75 @@
-// features/water/water.store.ts
 import { create } from "zustand";
 import { load, save } from "@/lib/persist";
-import { WaterLog } from "./water.schema";
+import { isoDate } from "@/lib/date";
+import type { WaterLog, WaterConfig } from "./water.schema";
+import { ensureTodayLog } from "./water.service";
+import { waterConfigSeed, waterHistorySeed, waterTodaySeed } from "./water.seed";
 
 type WaterState = {
+  config: WaterConfig;
   today: WaterLog;
+  monthHistory: WaterLog[];
   setTarget: (ml: number) => void;
+  setPresets: (values: number[]) => void;
   addEntry: (ml: number) => void;
   resetToday: () => void;
-  monthHistory: WaterLog[]; // lista de logs do mês
-  commitToday: () => void;  // salva hoje no histórico
+  commitToday: () => void;
 };
 
-const defaultToday: WaterLog = {
-  dateISO: new Date().toISOString().slice(0,10),
-  targetML: 2000,
-  entries: []
+const configFallback = () => load("water:config", waterConfigSeed);
+const historyFallback = () => load("water:hist", waterHistorySeed);
+const todayFallback = () => {
+  const saved = load<WaterLog | null>("water:today", null);
+  const config = configFallback();
+  if (saved) return ensureTodayLog(saved, config.targetML);
+  return ensureTodayLog(waterTodaySeed, config.targetML);
 };
 
-export const useWater = create<WaterState>((set, get) => ({
-  today: load<WaterLog>("water:today", defaultToday),
-  monthHistory: load<WaterLog[]>("water:hist", []),
+export const useWater = create<WaterState>((set) => ({
+  config: configFallback(),
+  today: todayFallback(),
+  monthHistory: historyFallback(),
 
-  setTarget: (ml) => set(s => {
-    const today = { ...s.today, targetML: ml };
-    save("water:today", today); return { today };
-  }),
+  setTarget: (ml) =>
+    set((state) => {
+      const config = { ...state.config, targetML: ml };
+      const today = { ...state.today, targetML: ml };
+      save("water:config", config);
+      save("water:today", today);
+      return { config, today };
+    }),
 
-  addEntry: (ml) => set(s => {
-    const today = { ...s.today, entries: [...s.today.entries, ml] };
-    save("water:today", today); return { today };
-  }),
+  setPresets: (values) =>
+    set((state) => {
+      const config = { ...state.config, presets: values };
+      save("water:config", config);
+      return { config };
+    }),
 
-  resetToday: () => set(() => { save("water:today", defaultToday); return { today: defaultToday }; }),
+  addEntry: (ml) =>
+    set((state) => {
+      const today = ensureTodayLog(state.today, state.config.targetML);
+      today.entries = [...today.entries, ml];
+      save("water:today", today);
+      return { today };
+    }),
 
-  commitToday: () => set(s => {
-    const hist = [...s.monthHistory.filter(h => h.dateISO !== s.today.dateISO), s.today];
-    save("water:hist", hist);
-    return { monthHistory: hist };
-  })
+  resetToday: () =>
+    set((state) => {
+      const today = { dateISO: isoDate(), targetML: state.config.targetML, entries: [] };
+      save("water:today", today);
+      return { today };
+    }),
+
+  commitToday: () =>
+    set((state) => {
+      const today = ensureTodayLog(state.today, state.config.targetML);
+      const monthHistory = [
+        ...state.monthHistory.filter((entry) => entry.dateISO !== today.dateISO),
+        today,
+      ].sort((a, b) => (a.dateISO > b.dateISO ? -1 : 1));
+      save("water:hist", monthHistory);
+      save("water:today", today);
+      return { monthHistory, today };
+    }),
 }));

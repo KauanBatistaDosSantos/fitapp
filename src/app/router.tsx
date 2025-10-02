@@ -1,4 +1,5 @@
 import { createBrowserRouter } from "react-router-dom";
+import AppShell from "@/App";
 import HomePage from "@/features/home/HomePage";
 import DietPage from "@/features/diet/DietPage";
 import DietConfigPage from "@/features/diet/DietConfigPage";
@@ -10,13 +11,19 @@ import WeightPage from "@/features/weight/WeightPage";
 import WeightConfigPage from "@/features/weight/WeightConfigPage";
 
 export const router = createBrowserRouter([
-  { path: "/", element: <HomePage /> },
-  { path: "/diet", element: <DietPage /> },
-  { path: "/diet/config", element: <DietConfigPage /> },
-  { path: "/water", element: <WaterPage /> },
-  { path: "/water/config", element: <WaterConfigPage /> },
-  { path: "/training", element: <TrainingPage /> },
-  { path: "/training/config", element: <TrainingConfigPage /> },
-  { path: "/weight", element: <WeightPage /> },
-  { path: "/weight/config", element: <WeightConfigPage /> },
+  {
+    path: "/",
+    element: <AppShell />,
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: "diet", element: <DietPage /> },
+      { path: "diet/config", element: <DietConfigPage /> },
+      { path: "water", element: <WaterPage /> },
+      { path: "water/config", element: <WaterConfigPage /> },
+      { path: "training", element: <TrainingPage /> },
+      { path: "training/config", element: <TrainingConfigPage /> },
+      { path: "weight", element: <WeightPage /> },
+      { path: "weight/config", element: <WeightConfigPage /> },
+    ],
+  },
 ]);

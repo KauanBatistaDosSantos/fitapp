@@ -3,7 +3,7 @@ import { z } from "zod";
 export const Split = z.enum(["A","B","C","D","E"]);
 export type Split = z.infer<typeof Split>;
 
-export const CardioKind = z.enum(["Zumba","Esteira","Bike","Transport","Escada","Elíptico","Corrida"]);
+export const CardioKind = z.string();
 export type CardioKind = z.infer<typeof CardioKind>;
 
 export const CardioBlock = z.object({ id: z.string(), kind: CardioKind, minutes: z.number() });
@@ -29,12 +29,3 @@ export type TrainingDayPlan = z.infer<typeof TrainingDayPlan>;
 
 export const TrainingTemplate = z.record(Split, TrainingDayPlan);
 export type TrainingTemplate = z.infer<typeof TrainingTemplate>;
-
-export const TrainingLog = z.object({
-  dateISO: z.string(),
-  split: Split,
-  amDone: z.boolean().default(false),
-  pmDone: z.boolean().default(false),
-  doneExercises: z.array(z.string()).default([]),
-});
-export type TrainingLog = z.infer<typeof TrainingLog>;
