@@ -20,14 +20,22 @@ type WaterState = {
   removeHistoryEntry: (dateISO: string) => void;
 };
 
-const configFallback = () => load("water:config", waterConfigSeed);
-const historyFallback = () => load("water:hist", waterHistorySeed);
+const useSeedData = import.meta.env.DEV;
+
+const defaultConfig: WaterConfig = { targetML: 0, presets: [] };
+const emptyHistory: WaterLog[] = [];
+const createEmptyToday = (targetML: number): WaterLog => ({ dateISO: isoDate(), targetML, entries: [] });
+
+const configFallback = () => load("water:config", useSeedData ? waterConfigSeed : defaultConfig);
+const historyFallback = () => load("water:hist", useSeedData ? waterHistorySeed : emptyHistory);
 const todayFallback = () => {
   const saved = load<WaterLog | null>("water:today", null);
   const config = configFallback();
   if (saved) return ensureTodayLog(saved, config.targetML);
-  return ensureTodayLog(waterTodaySeed, config.targetML);
-};
+  const baseToday = useSeedData
+    ? { ...waterTodaySeed, entries: [...waterTodaySeed.entries] }
+    : createEmptyToday(config.targetML);
+  return ensureTodayLog(baseToday, config.targetML);};
 
 export const useWater = create<WaterState>((set) => ({
   config: configFallback(),

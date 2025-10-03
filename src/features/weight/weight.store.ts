@@ -13,8 +13,13 @@ type WeightState = {
   removeEntry: (dateISO: string) => void;
 };
 
-const configFallback = () => load("weight:config", weightConfigSeed);
-const entriesFallback = () => load("weight:entries", weightEntriesSeed);
+const useSeedData = import.meta.env.DEV;
+
+const defaultConfig: WeightConfig = { heightM: 0, targetKg: 0 };
+const defaultEntries: WeightEntry[] = [];
+
+const configFallback = () => load("weight:config", useSeedData ? weightConfigSeed : defaultConfig);
+const entriesFallback = () => load("weight:entries", useSeedData ? weightEntriesSeed : defaultEntries);
 
 export const useWeight = create<WeightState>((set) => ({
   config: configFallback(),

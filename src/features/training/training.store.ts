@@ -54,9 +54,25 @@ type TrainingState = {
   resetWeek: () => void;
 };
 
-const catalogFallback = () => load("tr:catalog", trainingCatalogSeed);
-const cardioFallback = () => load("tr:cardioCat", cardioCatalogSeed);
-const templateFallback = () => load("tr:template", trainingTemplateSeed);
+const useSeedData = import.meta.env.DEV;
+
+const emptyTemplate: TrainingTemplate = {
+  A: { split: "A", am: [], pm: [] },
+  B: { split: "B", am: [], pm: [] },
+  C: { split: "C", am: [], pm: [] },
+  D: { split: "D", am: [], pm: [] },
+  E: { split: "E", am: [], pm: [] },
+};
+
+const defaultPreferences: TrainingPreferences = {
+  displayFormat: "inline",
+  mergeParts: true,
+  activeSplit: "A",
+};
+
+const catalogFallback = () => load("tr:catalog", useSeedData ? trainingCatalogSeed : []);
+const cardioFallback = () => load("tr:cardioCat", useSeedData ? cardioCatalogSeed : []);
+const templateFallback = () => load("tr:template", useSeedData ? trainingTemplateSeed : emptyTemplate);
 const weekFallback = () =>
   load("tr:week", buildWeekLog()).map((entry) => ({
     ...entry,
@@ -64,11 +80,8 @@ const weekFallback = () =>
     setProgress: entry.setProgress ?? {},
   }));
 const preferencesFallback = () => {
-  const fallback: TrainingPreferences = {
-    displayFormat: "inline",
-    mergeParts: true,
-    activeSplit: "A",
-  };
+  const fallback = { ...defaultPreferences };
+
   const loaded = load<TrainingPreferences>("tr:prefs", fallback);
   const validSplits: Split[] = ["A", "B", "C", "D", "E"];
   if (!validSplits.includes(loaded.activeSplit)) {

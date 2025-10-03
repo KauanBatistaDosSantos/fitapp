@@ -26,8 +26,13 @@ type DietState = {
   toggleMeal: (meal: MealName) => void;
 };
 
-const catalogFallback = () => load("diet:catalog", dietCatalogSeed);
-const weeklyFallback = () => load("diet:weekly", weeklyDietSeed);
+const useSeedData = import.meta.env.DEV;
+
+const emptyCatalog: Dish[] = [];
+const emptyWeekly: WeeklyDietTemplate = {} as WeeklyDietTemplate;
+
+const catalogFallback = () => load("diet:catalog", useSeedData ? dietCatalogSeed : emptyCatalog);
+const weeklyFallback = () => load("diet:weekly", useSeedData ? weeklyDietSeed : emptyWeekly);
 
 type DietStateData = Pick<DietState, "catalog" | "weekly" | "days" | "selectedDateISO">;
 
