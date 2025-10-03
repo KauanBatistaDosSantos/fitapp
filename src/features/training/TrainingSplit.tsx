@@ -338,7 +338,13 @@ function ExerciseItem({
       <div className="training-split__exerciseMain">
         <div className="training-split__exerciseMedia">
           {gif ? (
-            <img src={gif} alt={exercise.name} className="training-split__exerciseImage" loading="lazy" />
+            <img
+              src={gif}
+              alt={exercise.name}
+              className="training-split__exerciseImage"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
           ) : (
             <span className="training-split__exercisePlaceholder">Sem imagem</span>
           )}
@@ -451,7 +457,7 @@ function ExerciseDetail({
         {muscles.length > 0 && <p className="training-detail__muscles">Ativação: {muscles.join(", ")}</p>}
         {gif && (
           <div className="training-detail__media">
-            <img src={gif} alt={`Demonstração de ${exercise.name}`} />
+            <img src={gif} alt={`Demonstração de ${exercise.name}`} referrerPolicy="no-referrer" />
           </div>
         )}
         <div className="training-detail__section">
