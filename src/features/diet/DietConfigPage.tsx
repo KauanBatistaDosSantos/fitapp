@@ -26,7 +26,7 @@ export default function DietConfigPage() {
     removeDish,
     assignDishToDay,
     swapMeals,
-    regenerateTodayFromWeekly,
+    regenerateDayFromWeekly,
   } = useDiet();
   const [dishForm, setDishForm] = useState<DishDraft>(defaultDish);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -177,7 +177,7 @@ export default function DietConfigPage() {
       <Section
         title="Plano semanal"
         description="Escolha o dia, selecione o prato e defina a refeição."
-        action={<button onClick={() => regenerateTodayFromWeekly(new Date())}>Gerar plano de hoje novamente</button>}
+        action={<button onClick={() => regenerateDayFromWeekly(new Date())}>Gerar plano de hoje novamente</button>}
       >
         <form className="diet-form" onSubmit={handleAssign}>
           <div className="diet-form__grid diet-form__grid--assign">
