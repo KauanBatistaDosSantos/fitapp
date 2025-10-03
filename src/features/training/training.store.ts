@@ -40,6 +40,7 @@ type TrainingState = {
   addCardioKind: (kind: CardioKind) => void;
   addAmBlock: (split: Split, kind: CardioKind, minutes: number) => void;
   addPmExercise: (split: Split, exId: string, sets: number, reps: string, restSec?: number) => void;
+  updateAmBlock: (split: Split, id: string, patch: Partial<{ kind: CardioKind; minutes: number }>) => void;
   updatePmExercise: (split: Split, id: string, patch: Partial<Exercise>) => void;
   removePmExercise: (split: Split, id: string) => void;
   removeAmBlock: (split: Split, id: string) => void;
@@ -189,6 +190,25 @@ export const useTraining = create<TrainingState>((set) => ({
     set((state) => {
       const template = structuredClone(state.template);
       template[split].am.push({ id: uid(), kind, minutes });
+      save("tr:template", template);
+      return { template };
+    }),
+
+      updateAmBlock: (split, id, patch) =>
+    set((state) => {
+      const template = structuredClone(state.template);
+      template[split].am = template[split].am.map((block) =>
+        block.id === id
+          ? {
+              ...block,
+              ...patch,
+              minutes:
+                patch.minutes != null && !Number.isNaN(patch.minutes) && patch.minutes > 0
+                  ? patch.minutes
+                  : block.minutes,
+            }
+          : block,
+      );
       save("tr:template", template);
       return { template };
     }),

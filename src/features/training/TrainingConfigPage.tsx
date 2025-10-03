@@ -17,6 +17,7 @@ export default function TrainingConfigPage() {
     removeCatalogExercise,
     addCardioKind,
     addAmBlock,
+    updateAmBlock,
     addPmExercise,
     removeAmBlock,
     removePmExercise,
@@ -383,7 +384,9 @@ export default function TrainingConfigPage() {
               split={split}
               plan={template[split]}
               catalog={catalog}
+              cardioCatalog={cardioCatalog}
               onRemoveCardio={(id) => removeAmBlock(split, id)}
+              cardioCatalog={cardioCatalog}
               onRemoveExercise={(id) => removePmExercise(split, id)}
               onUpdateExercise={(id, payload) => updatePmExercise(split, id, payload)}
               onMoveExercise={(id, direction) => movePmExercise(split, id, direction)}
@@ -415,6 +418,8 @@ style.replaceSync(`
 .training-config__catalog {
   display: grid;
   gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  align-items: stretch;
 }
 .training-config__catalogItem {
   border: 1px solid rgba(148, 163, 184, 0.3);
@@ -424,6 +429,12 @@ style.replaceSync(`
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-height: 140px;
+}
+.training-config__catalogItem > div:first-of-type {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .training-config__catalogSubtitle {
   display: block;
@@ -437,6 +448,7 @@ style.replaceSync(`
 .training-config__catalogActions {
   display: flex;
   gap: 8px;
+  margin-top: auto;
 }
 .training-config__catalogActions button {
   border-radius: 8px;
