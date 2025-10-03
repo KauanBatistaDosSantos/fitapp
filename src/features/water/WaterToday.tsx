@@ -134,6 +134,12 @@ style.replaceSync(`
   flex-direction: column;
   gap: 12px;
 }
+.water-today__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 .water-today__header h2 {
   margin: 0;
 }

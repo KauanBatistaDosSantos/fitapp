@@ -30,22 +30,22 @@ export default function WaterPage() {
   return (
     <div className="app-card">
       <Section title="Consumo de água" description="Registre cada copo e acompanhe sua evolução mensal.">
-        <div className="water-page__actions">
+        <div className="water-tabs__header">
+          <div className="water-tabs">
+            {tabs.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setTab(item.key)}
+                className={`water-tabs__item ${tab === item.key ? "water-tabs__item--active" : ""}`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
           <Link to="/water/config" className="water-page__config">
             Configurar atalhos
           </Link>
-        </div>
-        <div className="water-tabs">
-          {tabs.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => setTab(item.key)}
-              className={`water-tabs__item ${tab === item.key ? "water-tabs__item--active" : ""}`}
-            >
-              {item.label}
-            </button>
-          ))}
         </div>
 
         {tab === "today" ? (
@@ -68,13 +68,20 @@ export default function WaterPage() {
 
 const style = new CSSStyleSheet();
 style.replaceSync(`
+.water-tabs__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
 .water-tabs {
   display: inline-flex;
   padding: 6px;
   background: rgba(148, 163, 184, 0.15);
   border-radius: 999px;
   gap: 6px;
-  margin-bottom: 18px;
 }
 .water-tabs__item {
   background: transparent;
@@ -88,11 +95,6 @@ style.replaceSync(`
   background: white;
   color: #1d4ed8;
   box-shadow: 0 10px 18px -16px rgba(37, 99, 235, 0.5);
-}
-.water-page__actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 16px;
 }
 .water-page__config {
   border-radius: 999px;
