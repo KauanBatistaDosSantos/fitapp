@@ -348,27 +348,29 @@ function ExerciseItem({
             <span className="training-split__exercisePlaceholder">Sem imagem</span>
           )}
         </div>
-        <div className="training-split__exerciseContent">
-          <div className="training-split__exerciseHeading">
-            <div className="training-split__exerciseMeta">
-              <span className="training-split__exerciseName">{exercise.name}</span>
-              {muscles.length > 0 && <span className="training-split__exerciseMuscle">{muscles.join(", ")}</span>}
-              <span className="training-split__exerciseDetail">{detail}</span>
+        <div className="training-split__exerciseInfo">
+          <div className="training-split__exerciseContent">
+            <div className="training-split__exerciseHeading">
+              <div className="training-split__exerciseMeta">
+                <span className="training-split__exerciseName">{exercise.name}</span>
+                {muscles.length > 0 && <span className="training-split__exerciseMuscle">{muscles.join(", ")}</span>}
+                <span className="training-split__exerciseDetail">{detail}</span>
+              </div>
             </div>
+            {isResting && !isCompleted && (
+              <div className="training-split__restNotice">Descanso: {formatSeconds(restRemaining)}</div>
+            )}
           </div>
-          {isResting && !isCompleted && (
-            <div className="training-split__restNotice">Descanso: {formatSeconds(restRemaining)}</div>
-          )}
+          <button
+            type="button"
+            className={`training-split__play ${isCompleted ? "training-split__play--done" : ""}`}
+            onClick={handlePlay}
+          >
+            <span aria-hidden="true">{playIcon}</span>
+            <span>{playLabel}</span>
+          </button>
         </div>
       </div>
-      <button
-        type="button"
-        className={`training-split__play ${isCompleted ? "training-split__play--done" : ""}`}
-        onClick={handlePlay}
-      >
-        <span aria-hidden="true">{playIcon}</span>
-        <span>{playLabel}</span>
-      </button>
       {showControls && (
         <div className="training-split__exerciseControls">
           <SetCounter total={exercise.sets} completed={setsCompleted} onChange={handleSetChange} />
@@ -640,9 +642,9 @@ style.replaceSync(`
 .training-split__exerciseMain {
   display: flex;
   gap: 16px;
-  align-items: flex-start;
+  align-items: stretch;
 }
-  .training-split__exerciseMedia {
+.training-split__exerciseMedia {
   width: 96px;
   height: 96px;
   border-radius: 12px;
@@ -664,8 +666,14 @@ style.replaceSync(`
   text-align: center;
   padding: 0 8px;
 }
-.training-split__exerciseContent {
+.training-split__exerciseInfo {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 96px;
+}
+.training-split__exerciseContent {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -719,6 +727,8 @@ style.replaceSync(`
   font-weight: 600;
   box-shadow: 0 10px 20px -12px rgba(37, 99, 235, 0.8);
   cursor: pointer;
+  align-self: flex-end;
+  margin-top: auto;
 }
 .training-split__play--done {
   background: rgba(34, 197, 94, 0.15);
@@ -726,10 +736,6 @@ style.replaceSync(`
   border-color: rgba(34, 197, 94, 0.4);
   box-shadow: none;
   cursor: default;
-}
-.training-split__playWrapper {
-  display: flex;
-  justify-content: flex-end;
 }
 .training-split__restNotice {
   font-size: 0.85rem;
