@@ -111,3 +111,7 @@ style.replaceSync(`
   margin-left: 12px;
 }
 `);
+
+if (typeof document !== "undefined" && !document.adoptedStyleSheets.includes(style)) {
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, style];
+}
