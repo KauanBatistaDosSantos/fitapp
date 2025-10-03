@@ -386,7 +386,7 @@ export default function TrainingConfigPage() {
               catalog={catalog}
               cardioCatalog={cardioCatalog}
               onRemoveCardio={(id) => removeAmBlock(split, id)}
-              cardioCatalog={cardioCatalog}
+              onUpdateCardio={(id, payload) => updateAmBlock(split, id, payload)}
               onRemoveExercise={(id) => removePmExercise(split, id)}
               onUpdateExercise={(id, payload) => updatePmExercise(split, id, payload)}
               onMoveExercise={(id, direction) => movePmExercise(split, id, direction)}
