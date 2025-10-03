@@ -12,6 +12,7 @@ const splitTitles: Record<Split, string> = {
 
 type TrainingDayProps = {
   split: Split;
+  splitLabel: string;
   plan: TrainingTemplate[Split];
   catalog: ExerciseCatalogItem[];
   cardioCatalog: CardioCatalogItem[];
@@ -37,6 +38,7 @@ type CardioDraft = {
 
 export function TrainingDay({
   split,
+  splitLabel,
   plan,
   catalog,
   cardioCatalog,
@@ -239,7 +241,10 @@ export function TrainingDay({
   return (
     <div className="training-day">
       <header>
-        <h3>{splitTitles[split]}</h3>
+        <h3>
+          {splitTitles[split]}
+          {splitLabel?.trim() ? ` · ${splitLabel.trim()}` : ""}
+        </h3>
       </header>
       <div className="training-day__columns">
         <div>

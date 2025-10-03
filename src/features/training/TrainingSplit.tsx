@@ -2,14 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Split, TrainingTemplate, TrainingLog, Exercise } from "./training.schema";
 import { sessionProgress, isToday } from "./training.service";
 import type { ExerciseCatalogItem, TrainingPreferences } from "./training.store";
-
-const splitTitles: Record<Split, string> = {
-  A: "Peitoral",
-  B: "Dorsal",
-  C: "Pernas",
-  D: "Ombros",
-  E: "Bíceps & Tríceps",
-};
+import { defaultSplitLabels } from "./training.store";
 
 type TrainingSplitProps = {
   split: Split;
@@ -91,14 +84,16 @@ export function TrainingSplit({
   }, [detailState, plan.pm]);
 
   const detailCatalog = detailExercise?.catalogId ? catalogById[detailExercise.catalogId] : undefined;
+  const rawLabel = preferences.splitLabels?.[split] ?? defaultSplitLabels[split] ?? "";
+  const splitLabel = rawLabel.trim();
 
   return (
     <section className="training-split">
       <header className="training-split__header">
         <div>
           <h3>
-            Treino {split} · {splitTitles[split]}
-          </h3>
+            Treino {split}
+            {splitLabel ? ` · ${splitLabel}` : ""}          </h3>
           <p>
             {plan.am.length > 0 && "Cardio pela manhã"}
             {plan.am.length > 0 && plan.pm.length > 0 && " · "}

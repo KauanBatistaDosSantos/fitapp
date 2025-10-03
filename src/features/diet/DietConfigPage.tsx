@@ -268,7 +268,7 @@ export default function DietConfigPage() {
                       const dish = catalog.find((d) => d.id === item.dishId);
                       return (
                         <li key={item.id}>
-                          {dish?.name ?? "Prato removido"} · {item.qty} {dish?.unit ?? "un"}
+                          {dish?.name ?? "Prato não cadastrado"} · {item.qty} {dish?.unit ?? "un"}
                         </li>
                       );
                     })}

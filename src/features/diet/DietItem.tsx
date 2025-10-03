@@ -17,8 +17,10 @@ type DietItemProps = {
 
 export function DietItem({ meal, dish, item, onToggle }: DietItemProps) {
   const label = mealLabels[meal];
-  const name = dish?.name ?? "Prato removido";
-  const subtitle = dish ? `${item.qty} ${dish.unit}${dish.kcal ? ` · ${dish.kcal} kcal` : ""}` : "Cadastre esse prato novamente";
+  const name = dish?.name ?? "Prato não cadastrado";
+  const subtitle = dish
+    ? `${item.qty} ${dish.unit}${dish.kcal ? ` · ${dish.kcal} kcal` : ""}`
+    : "Esse item não está vinculado a um prato ativo. Cadastre-o novamente no plano semanal.";
 
   return (
     <li>

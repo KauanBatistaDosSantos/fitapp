@@ -19,6 +19,15 @@ export type TrainingPreferences = {
   displayFormat: "inline" | "stacked";
   mergeParts: boolean;
   activeSplit: Split;
+  splitLabels: Record<Split, string>;
+};
+
+export const defaultSplitLabels: Record<Split, string> = {
+  A: "Peitoral",
+  B: "Dorsal",
+  C: "Pernas",
+  D: "Ombros",
+  E: "Bíceps & Tríceps",
 };
 
 type TrainingState = {
@@ -68,6 +77,7 @@ const defaultPreferences: TrainingPreferences = {
   displayFormat: "inline",
   mergeParts: true,
   activeSplit: "A",
+  splitLabels: defaultSplitLabels,
 };
 
 const catalogFallback = () => load("tr:catalog", useSeedData ? trainingCatalogSeed : []);
@@ -80,13 +90,20 @@ const weekFallback = () =>
     setProgress: entry.setProgress ?? {},
   }));
 const preferencesFallback = () => {
-  const fallback = { ...defaultPreferences };
+  const fallback: TrainingPreferences = {
+    ...defaultPreferences,
+    splitLabels: { ...defaultPreferences.splitLabels },
+  };
 
   const loaded = load<TrainingPreferences>("tr:prefs", fallback);
   const validSplits: Split[] = ["A", "B", "C", "D", "E"];
   if (!validSplits.includes(loaded.activeSplit)) {
     loaded.activeSplit = fallback.activeSplit;
   }
+  loaded.splitLabels = {
+    ...fallback.splitLabels,
+    ...(loaded.splitLabels ?? {}),
+  };
   return loaded;
 };
 
@@ -402,8 +419,14 @@ export const useTraining = create<TrainingState>((set) => ({
 
   setPreferences: (patch) =>
     set((state) => {
-      const preferences = { ...state.preferences, ...patch };
-      save("tr:prefs", preferences);
+      const preferences: TrainingPreferences = {
+        ...state.preferences,
+        ...patch,
+        splitLabels: {
+          ...state.preferences.splitLabels,
+          ...(patch.splitLabels ?? {}),
+        },
+      };      save("tr:prefs", preferences);
       return { preferences };
     }),
 

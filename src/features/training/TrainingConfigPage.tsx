@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Section } from "@/components/Section";
-import { useTraining } from "./training.store";
+import { defaultSplitLabels, useTraining } from "./training.store";
 import { splitOrder } from "./training.service";
 import type { Split } from "./training.schema";
 import { TrainingDay } from "./TrainingDay";
@@ -12,6 +12,7 @@ export default function TrainingConfigPage() {
     catalog,
     cardioCatalog,
     template,
+    preferences,
     addCatalogExercise,
     updateCatalogExercise,
     removeCatalogExercise,
@@ -23,6 +24,7 @@ export default function TrainingConfigPage() {
     removePmExercise,
     updatePmExercise,
     movePmExercise,
+    setPreferences,
   } = useTraining();
 
   const [newExercise, setNewExercise] = useState({
@@ -42,6 +44,15 @@ export default function TrainingConfigPage() {
   const [rest, setRest] = useState("60");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingForm, setEditingForm] = useState({ name: "", muscle: "", gifUrl: "", secondary: "", substitutions: [] as string[] });
+
+  const handleSplitLabelChange = (split: Split, value: string) => {
+    setPreferences({
+      splitLabels: {
+        ...preferences.splitLabels,
+        [split]: value,
+      },
+    });
+  };
 
   useEffect(() => {
     if (cardioCatalog.length === 0 && cardioKind !== "") {
@@ -309,6 +320,24 @@ export default function TrainingConfigPage() {
         </form>
       </Section>
 
+      <Section
+        title="Identificar treinos"
+        description="Escolha como cada dia da divisão será apresentado nos treinos e no acompanhamento semanal."
+      >
+        <div className="training-config__grid training-config__grid--labels">
+          {splitOrder.map((split) => (
+            <label key={split}>
+              Treino {split}
+              <input
+                value={preferences.splitLabels[split] ?? ""}
+                onChange={(event) => handleSplitLabelChange(split, event.target.value)}
+                placeholder={defaultSplitLabels[split]}
+              />
+            </label>
+          ))}
+        </div>
+      </Section>
+
       <Section title="Montar divisão" description="Selecione o treino e inclua blocos para as duas partes do dia.">
         <div className="training-config__grid training-config__grid--assign">
           <label>
@@ -382,6 +411,7 @@ export default function TrainingConfigPage() {
             <TrainingDay
               key={split}
               split={split}
+              splitLabel={preferences.splitLabels[split] ?? defaultSplitLabels[split]}
               plan={template[split]}
               catalog={catalog}
               cardioCatalog={cardioCatalog}
@@ -480,6 +510,9 @@ style.replaceSync(`
 .training-config__grid--assign {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   align-items: start;
+}
+.training-config__grid--labels {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 .training-config__subform {
   display: flex;

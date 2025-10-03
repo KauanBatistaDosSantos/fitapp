@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ProgressBar } from "@/components/ProgressBar";
 import { Section } from "@/components/Section";
-import { useTraining } from "./training.store";
+import { defaultSplitLabels, useTraining } from "./training.store";
 import { splitOrder, todaySplit, trainingProgress } from "./training.service";
 import { TrainingSplit } from "./TrainingSplit";
 import type { Split } from "./training.schema";
@@ -36,17 +36,23 @@ export default function TrainingPage() {
 
   const summaryProgress = useMemo(() => trainingProgress(template, weekLog), [template, weekLog]);
 
+  const resolveSplitLabel = (split: Split) =>
+    (preferences.splitLabels?.[split] ?? defaultSplitLabels[split] ?? "").trim();
+
   const timeline = useMemo(
     () =>
       weekLog
         .slice()
         .sort((a, b) => (a.dateISO > b.dateISO ? 1 : -1))
-        .map((log) => ({
-          ...log,
-          label: `Treino ${log.split}`,
-          completed: (log.completedCardio.length > 0 || log.amDone) && (log.pmDone || log.doneExercises.length > 0),
-        })),
-    [weekLog],
+        .map((log) => {
+          const label = resolveSplitLabel(log.split);
+          return {
+            ...log,
+            label: label ? `Treino ${log.split} · ${label}` : `Treino ${log.split}`,
+            completed: (log.completedCardio.length > 0 || log.amDone) && (log.pmDone || log.doneExercises.length > 0),
+          };
+        }),
+    [weekLog, preferences.splitLabels],
   );
 
   return (
@@ -80,16 +86,21 @@ export default function TrainingPage() {
             </div>
 
             <div className="training-tabs">
-              {splitOrder.map((split) => (
-                <button
-                  key={split}
-                  type="button"
-                  className={`training-tabs__item ${activeSplit === split ? "training-tabs__item--active" : ""}`}
-                  onClick={() => handleSelectSplit(split)}
-                >
-                  {`Treino ${split}`}
-                </button>
-              ))}
+              {splitOrder.map((split) => {
+                const label = resolveSplitLabel(split);
+                return (
+                  <button
+                    key={split}
+                    type="button"
+                    className={`training-tabs__item ${activeSplit === split ? "training-tabs__item--active" : ""}`}
+                    onClick={() => handleSelectSplit(split)}
+                    aria-label={label ? `Treino ${split}: ${label}` : `Treino ${split}`}
+                  >
+                    <span className="training-tabs__title">{`Treino ${split}`}</span>
+                    {label && <span className="training-tabs__subtitle">{label}</span>}
+                  </button>
+                );
+              })}
             </div>
 
             <TrainingSplit
@@ -198,11 +209,28 @@ style.replaceSync(`
   border-radius: 999px;
   font-weight: 600;
   color: #475569;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 110px;
+}
+.training-tabs__title {
+  line-height: 1.1;
+}
+.training-tabs__subtitle {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+  line-height: 1.1;
 }
 .training-tabs__item--active {
   background: white;
   color: #1d4ed8;
   box-shadow: 0 10px 18px -16px rgba(37, 99, 235, 0.5);
+}
+.training-tabs__item--active .training-tabs__subtitle {
+  color: #1d4ed8;
 }
 .training-actions {
   display: flex;
