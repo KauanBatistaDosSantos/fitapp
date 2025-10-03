@@ -346,7 +346,7 @@ export function TrainingDay({
                   <li key={exercise.id}>
                     <div className="training-day__exercise">
                       <div className="training-day__exerciseHeader">
-                        <div>
+                        <div className="training-day__exerciseInfo">
                           <span className="training-day__exerciseName">{exercise.name}</span>
                           {catalogInfo?.muscles && catalogInfo.muscles.length > 0 && (
                             <span className="training-day__exerciseMuscle">{catalogInfo.muscles.join(", ")}</span>
@@ -500,6 +500,13 @@ style.replaceSync(`
   gap: 8px;
   flex-wrap: wrap;
 }
+.training-day__actions button,
+.training-day__formActions button {
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  line-height: 1.1;
+  border-radius: 8px;
+}
 .training-day__exercise {
   display: flex;
   flex-direction: column;
@@ -509,6 +516,10 @@ style.replaceSync(`
   display: flex;
   gap: 12px;
   align-items: flex-start;
+}
+.training-day__exerciseInfo {
+  flex: 1;
+  min-width: 0;
 }
 .training-day__cardioHeader {
   display: flex;
@@ -525,6 +536,8 @@ style.replaceSync(`
 }
 .training-day__exerciseName {
   font-weight: 700;
+  display: block;
+  overflow-wrap: anywhere;
 }
 .training-day__exerciseMuscle {
   display: block;

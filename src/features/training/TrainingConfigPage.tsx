@@ -454,6 +454,8 @@ style.replaceSync(`
   border-radius: 8px;
   border: 1px solid rgba(148, 163, 184, 0.35);
   padding: 4px 10px;
+  font-size: 0.85rem;
+  line-height: 1.1;
 }
 .training-config__catalogRemove {
   background: rgba(239, 68, 68, 0.1);
