@@ -1,7 +1,14 @@
 import { create } from "zustand";
 import { load, save, uid } from "@/lib/persist";
 import type { TrainingTemplate, Split, Exercise, CardioKind, TrainingLog } from "./training.schema";
-import { trainingCatalogSeed, cardioCatalogSeed, trainingTemplateSeed, buildWeekLog } from "./training.seed";
+import {
+  trainingCatalogSeed,
+  cardioCatalogSeed,
+  trainingTemplateSeed,
+  buildWeekLog,
+  isCurrentWeekLog,
+} from "./training.seed";
+import { getActiveSplits, splitOrder } from "./training.service";
 import { isoDate } from "@/lib/date";
 
 export type ExerciseCatalogItem = {
@@ -20,6 +27,7 @@ export type TrainingPreferences = {
   mergeParts: boolean;
   activeSplit: Split;
   splitLabels: Record<Split, string>;
+  trainingDays: number;
 };
 
 export const defaultSplitLabels: Record<Split, string> = {
@@ -28,6 +36,8 @@ export const defaultSplitLabels: Record<Split, string> = {
   C: "Pernas",
   D: "Ombros",
   E: "Bíceps & Tríceps",
+  F: "",
+  G: "",
 };
 
 type TrainingState = {
@@ -54,12 +64,15 @@ type TrainingState = {
   removePmExercise: (split: Split, id: string) => void;
   removeAmBlock: (split: Split, id: string) => void;
   movePmExercise: (split: Split, id: string, direction: "up" | "down") => void;
+  moveExerciseToSplit: (from: Split, to: Split, id: string) => void;
   toggleCardioBlock: (split: Split, id: string) => void;
   toggleSessionPart: (split: Split, part: "am" | "pm") => void;
   toggleExerciseDone: (split: Split, id: string) => void;
   setExerciseSetProgress: (split: Split, id: string, setsCompleted: number) => void;
   recordExerciseLoad: (split: Split, id: string, loadKg: number) => void;
+  reorderTrainingSplit: (from: Split, to: Split) => void;
   setPreferences: (patch: Partial<TrainingPreferences>) => void;
+  ensureCurrentWeek: () => void;
   resetWeek: () => void;
 };
 
@@ -71,6 +84,8 @@ const emptyTemplate: TrainingTemplate = {
   C: { split: "C", am: [], pm: [] },
   D: { split: "D", am: [], pm: [] },
   E: { split: "E", am: [], pm: [] },
+  F: { split: "F", am: [], pm: [] },
+  G: { split: "G", am: [], pm: [] },
 };
 
 const defaultPreferences: TrainingPreferences = {
@@ -78,17 +93,37 @@ const defaultPreferences: TrainingPreferences = {
   mergeParts: true,
   activeSplit: "A",
   splitLabels: defaultSplitLabels,
+  trainingDays: 5,
 };
 
 const catalogFallback = () => load("tr:catalog", useSeedData ? trainingCatalogSeed : []);
 const cardioFallback = () => load("tr:cardioCat", useSeedData ? cardioCatalogSeed : []);
-const templateFallback = () => load("tr:template", useSeedData ? trainingTemplateSeed : emptyTemplate);
-const weekFallback = () =>
-  load("tr:week", buildWeekLog()).map((entry) => ({
-    ...entry,
-    completedCardio: entry.completedCardio ?? [],
-    setProgress: entry.setProgress ?? {},
-  }));
+const templateFallback = () => {
+  const fallback = useSeedData ? trainingTemplateSeed : emptyTemplate;
+  const loaded = load<Partial<TrainingTemplate>>("tr:template", fallback);
+  return Object.fromEntries(
+    splitOrder.map((split) => [
+      split,
+      loaded[split] ?? { split, am: [], pm: [] },
+    ]),
+  ) as TrainingTemplate;
+};
+const weekFallback = () => {
+  const fallback = buildWeekLog();
+  const saved = load<TrainingLog[]>("tr:week", fallback);
+  const loaded = isCurrentWeekLog(saved) ? saved : fallback;
+  if (loaded === fallback && saved !== fallback) {
+    save("tr:week", fallback);
+  }
+  return splitOrder.map((split) => {
+    const entry = loaded.find((item) => item.split === split) ?? fallback.find((item) => item.split === split)!;
+    return {
+      ...entry,
+      completedCardio: entry.completedCardio ?? [],
+      setProgress: entry.setProgress ?? {},
+    };
+  });
+};
 const preferencesFallback = () => {
   const fallback: TrainingPreferences = {
     ...defaultPreferences,
@@ -96,8 +131,9 @@ const preferencesFallback = () => {
   };
 
   const loaded = load<TrainingPreferences>("tr:prefs", fallback);
-  const validSplits: Split[] = ["A", "B", "C", "D", "E"];
-  if (!validSplits.includes(loaded.activeSplit)) {
+  loaded.trainingDays = Math.min(7, Math.max(2, Math.round(loaded.trainingDays ?? fallback.trainingDays)));
+  const activeSplits = getActiveSplits(loaded.trainingDays);
+  if (!activeSplits.includes(loaded.activeSplit)) {
     loaded.activeSplit = fallback.activeSplit;
   }
   loaded.splitLabels = {
@@ -302,6 +338,49 @@ export const useTraining = create<TrainingState>((set) => ({
       return { template };
     }),
 
+  moveExerciseToSplit: (from, to, id) =>
+    set((state) => {
+      if (from === to) return {};
+      const template = structuredClone(state.template);
+      const exerciseIndex = template[from].pm.findIndex((exercise) => exercise.id === id);
+      if (exerciseIndex === -1) return {};
+
+      const [exercise] = template[from].pm.splice(exerciseIndex, 1);
+      template[to].pm.push(exercise);
+
+      const sourceLog = state.weekLog.find((log) => log.split === from);
+      const wasDone = sourceLog?.doneExercises.includes(id) ?? false;
+      const completedSets = sourceLog?.setProgress[id];
+      const weekLog = state.weekLog.map((log) => {
+        if (log.split === from) {
+          const doneExercises = log.doneExercises.filter((exerciseId) => exerciseId !== id);
+          const setProgress = { ...log.setProgress };
+          delete setProgress[id];
+          const pmDone =
+            template[from].pm.length > 0 &&
+            template[from].pm.every((item) => doneExercises.includes(item.id));
+          return { ...log, doneExercises, setProgress, pmDone };
+        }
+        if (log.split === to) {
+          const doneExercises =
+            wasDone && !log.doneExercises.includes(id)
+              ? [...log.doneExercises, id]
+              : log.doneExercises;
+          const setProgress = { ...log.setProgress };
+          if (completedSets != null) setProgress[id] = completedSets;
+          const pmDone =
+            template[to].pm.length > 0 &&
+            template[to].pm.every((item) => doneExercises.includes(item.id));
+          return { ...log, doneExercises, setProgress, pmDone };
+        }
+        return log;
+      });
+
+      save("tr:template", template);
+      save("tr:week", weekLog);
+      return { template, weekLog };
+    }),
+
   toggleCardioBlock: (split, id) =>
     set((state) => {
       const weekLog = state.weekLog.map((log) => {
@@ -417,17 +496,90 @@ export const useTraining = create<TrainingState>((set) => ({
       return { template };
     }),
 
+  reorderTrainingSplit: (from, to) =>
+    set((state) => {
+      const fromIndex = splitOrder.indexOf(from);
+      const toIndex = splitOrder.indexOf(to);
+      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return {};
+
+      const sourceOrder = [...splitOrder];
+      const [movedSource] = sourceOrder.splice(fromIndex, 1);
+      sourceOrder.splice(toIndex, 0, movedSource);
+
+      const destinationDates = Object.fromEntries(
+        state.weekLog.map((log) => [log.split, log.dateISO]),
+      ) as Partial<Record<Split, string>>;
+      const template = {} as TrainingTemplate;
+      const splitLabels = {} as Record<Split, string>;
+      const weekLog = splitOrder.map((destination, index) => {
+        const source = sourceOrder[index];
+        const sourcePlan = state.template[source];
+        const sourceLog = state.weekLog.find((log) => log.split === source);
+        template[destination] = {
+          ...structuredClone(sourcePlan),
+          split: destination,
+        };
+        splitLabels[destination] = state.preferences.splitLabels[source] ?? "";
+        return {
+          ...(sourceLog ?? {
+            dateISO: destinationDates[destination] ?? isoDate(),
+            amDone: false,
+            pmDone: false,
+            doneExercises: [],
+            completedCardio: [],
+            setProgress: {},
+          }),
+          dateISO: destinationDates[destination] ?? sourceLog?.dateISO ?? isoDate(),
+          split: destination,
+        };
+      });
+
+      const movedActiveIndex = sourceOrder.indexOf(state.preferences.activeSplit);
+      const nextActiveSplit = splitOrder[movedActiveIndex];
+      const activeSplits = getActiveSplits(state.preferences.trainingDays);
+      const preferences: TrainingPreferences = {
+        ...state.preferences,
+        activeSplit: activeSplits.includes(nextActiveSplit)
+          ? nextActiveSplit
+          : activeSplits[0],
+        splitLabels,
+      };
+
+      save("tr:template", template);
+      save("tr:week", weekLog);
+      save("tr:prefs", preferences);
+      return { template, weekLog, preferences };
+    }),
+
   setPreferences: (patch) =>
     set((state) => {
+      const trainingDays = Math.min(
+        7,
+        Math.max(2, Math.round(patch.trainingDays ?? state.preferences.trainingDays)),
+      );
+      const activeSplits = getActiveSplits(trainingDays);
+      const requestedActiveSplit = patch.activeSplit ?? state.preferences.activeSplit;
       const preferences: TrainingPreferences = {
         ...state.preferences,
         ...patch,
+        trainingDays,
+        activeSplit: activeSplits.includes(requestedActiveSplit)
+          ? requestedActiveSplit
+          : activeSplits[0],
         splitLabels: {
           ...state.preferences.splitLabels,
           ...(patch.splitLabels ?? {}),
         },
       };      save("tr:prefs", preferences);
       return { preferences };
+    }),
+
+  ensureCurrentWeek: () =>
+    set((state) => {
+      if (isCurrentWeekLog(state.weekLog)) return {};
+      const weekLog = buildWeekLog();
+      save("tr:week", weekLog);
+      return { weekLog };
     }),
 
   resetWeek: () =>

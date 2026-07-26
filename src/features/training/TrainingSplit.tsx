@@ -95,9 +95,13 @@ export function TrainingSplit({
             Treino {split}
             {splitLabel ? ` · ${splitLabel}` : ""}          </h3>
           <p>
-            {plan.am.length > 0 && "Cardio pela manhã"}
-            {plan.am.length > 0 && plan.pm.length > 0 && " · "}
-            {plan.pm.length > 0 && "Musculação à tarde"}
+            {plan.am.length > 0 && plan.pm.length > 0
+              ? "Cardio pela manhã · Musculação à tarde"
+              : plan.am.length > 0
+              ? "Cardio"
+              : plan.pm.length > 0
+              ? "Musculação"
+              : "Nenhum bloco cadastrado"}
           </p>
         </div>
         <span className="training-split__progress">{Math.round(progress * 100)}%</span>
@@ -142,7 +146,7 @@ export function TrainingSplit({
           {plan.am.length > 0 && (
             <div className="training-split__block">
               <div className="training-split__blockHeader">
-                <strong>Parte 1 · Cardio</strong>
+                <strong>{plan.pm.length > 0 ? "Parte 1 · Cardio" : "Cardio"}</strong>
                 <button type="button" onClick={() => onTogglePart(split, "am")}>
                   {log?.amDone ? "Reabrir" : "Concluir parte"}
                 </button>
@@ -165,7 +169,7 @@ export function TrainingSplit({
           {plan.pm.length > 0 && (
             <div className="training-split__block">
               <div className="training-split__blockHeader">
-                <strong>Parte 2 · Musculação</strong>
+                <strong>{plan.am.length > 0 ? "Parte 2 · Musculação" : "Musculação"}</strong>
                 <button type="button" onClick={() => onTogglePart(split, "pm")}>
                   {log?.pmDone ? "Reabrir" : "Concluir parte"}
                 </button>
@@ -760,8 +764,12 @@ style.replaceSync(`
   border: 1px solid rgba(148, 163, 184, 0.35);
   width: 32px;
   height: 32px;
-  display: grid;
-  place-items: center;
+  flex: 0 0 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
   font-size: 0.85rem;
   background: rgba(248, 250, 252, 0.9);
 }

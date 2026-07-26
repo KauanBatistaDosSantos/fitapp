@@ -93,11 +93,34 @@ export const trainingTemplateSeed: TrainingTemplate = {
       exercise("tr-ex-15", "Elevação lateral", 3, "12", 45, { muscles: ["Ombros"] }),
     ],
   },
+  F: {
+    split: "F",
+    am: [],
+    pm: [],
+  },
+  G: {
+    split: "G",
+    am: [],
+    pm: [],
+  },
 };
 
-export function buildWeekLog(reference: Date = new Date()): TrainingLog[] {
+export function trainingWeekStart(reference: Date = new Date()) {
   const base = new Date(reference);
-  return ("ABCDE".split("") as Split[]).map((split, index) => {
+  base.setHours(12, 0, 0, 0);
+  const daysSinceMonday = (base.getDay() + 6) % 7;
+  base.setDate(base.getDate() - daysSinceMonday);
+  return base;
+}
+
+export function isCurrentWeekLog(weekLog: TrainingLog[], reference: Date = new Date()) {
+  const expectedStart = isoDate(trainingWeekStart(reference));
+  return weekLog.some((entry) => entry.split === "A" && entry.dateISO === expectedStart);
+}
+
+export function buildWeekLog(reference: Date = new Date()): TrainingLog[] {
+  const base = trainingWeekStart(reference);
+  return ("ABCDEFG".split("") as Split[]).map((split, index) => {
     const date = new Date(base);
     date.setDate(base.getDate() + index);
     return {

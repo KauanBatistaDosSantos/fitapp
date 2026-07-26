@@ -8,12 +8,15 @@ const splitTitles: Record<Split, string> = {
   C: "Treino C",
   D: "Treino D",
   E: "Treino E",
+  F: "Treino F",
+  G: "Treino G",
 };
 
 type TrainingDayProps = {
   split: Split;
   splitLabel: string;
   plan: TrainingTemplate[Split];
+  availableSplits: Split[];
   catalog: ExerciseCatalogItem[];
   cardioCatalog: CardioCatalogItem[];
   onRemoveCardio: (id: string) => void;
@@ -21,6 +24,7 @@ type TrainingDayProps = {
   onRemoveExercise: (id: string) => void;
   onUpdateExercise: (id: string, payload: { sets: number; reps: string; restSec: number; notes?: string; loadKg?: number }) => void;
   onMoveExercise: (id: string, direction: "up" | "down") => void;
+  onMoveExerciseToSplit: (id: string, target: Split) => void;
 };
 
 type ExerciseDraft = {
@@ -40,6 +44,7 @@ export function TrainingDay({
   split,
   splitLabel,
   plan,
+  availableSplits,
   catalog,
   cardioCatalog,
   onRemoveCardio,
@@ -47,6 +52,7 @@ export function TrainingDay({
   onRemoveExercise,
   onUpdateExercise,
   onMoveExercise,
+  onMoveExerciseToSplit,
 }: TrainingDayProps) {
   const catalogById = useMemo(
     () =>
@@ -61,6 +67,7 @@ export function TrainingDay({
   const [cardioDrafts, setCardioDrafts] = useState<Record<string, CardioDraft>>({});
   const [editingExercises, setEditingExercises] = useState<Record<string, boolean>>({});
   const [editingCardio, setEditingCardio] = useState<Record<string, boolean>>({});
+  const [exerciseDestinations, setExerciseDestinations] = useState<Record<string, Split | "">>({});
 
   useEffect(() => {
     setExerciseDrafts(() => {
@@ -441,6 +448,36 @@ export function TrainingDay({
                       )}
 
                       <div className="training-day__actions training-day__actions--gap">
+                        <select
+                          className="training-day__moveSelect"
+                          value={exerciseDestinations[exercise.id] ?? ""}
+                          aria-label={`Escolher destino de ${exercise.name}`}
+                          onChange={(event) =>
+                            setExerciseDestinations((prev) => ({
+                              ...prev,
+                              [exercise.id]: event.target.value as Split | "",
+                            }))
+                          }
+                        >
+                          <option value="">Mover para...</option>
+                          {availableSplits
+                            .filter((target) => target !== split)
+                            .map((target) => (
+                              <option key={target} value={target}>
+                                Treino {target}
+                              </option>
+                            ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={!exerciseDestinations[exercise.id]}
+                          onClick={() => {
+                            const target = exerciseDestinations[exercise.id];
+                            if (target) onMoveExerciseToSplit(exercise.id, target);
+                          }}
+                        >
+                          Mover
+                        </button>
                         {!isEditing && (
                           <button type="button" onClick={() => startExerciseEdit(exercise.id)}>
                             Editar
@@ -609,6 +646,12 @@ style.replaceSync(`
   margin: 0;
   font-size: 0.85rem;
   color: #475569;
+}
+.training-day__moveSelect {
+  min-width: 126px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 0.85rem;
 }
 @media (min-width: 768px) {
   .training-day__columns {

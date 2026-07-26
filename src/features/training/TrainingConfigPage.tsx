@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Section } from "@/components/Section";
 import { defaultSplitLabels, useTraining } from "./training.store";
-import { splitOrder } from "./training.service";
+import { getActiveSplits, splitOrder } from "./training.service";
 import type { Split } from "./training.schema";
 import { TrainingDay } from "./TrainingDay";
 
@@ -24,6 +24,8 @@ export default function TrainingConfigPage() {
     removePmExercise,
     updatePmExercise,
     movePmExercise,
+    moveExerciseToSplit,
+    reorderTrainingSplit,
     setPreferences,
   } = useTraining();
 
@@ -43,7 +45,13 @@ export default function TrainingConfigPage() {
   const [reps, setReps] = useState("12");
   const [rest, setRest] = useState("60");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [draggingSplit, setDraggingSplit] = useState<Split | null>(null);
+  const [activeConfigTab, setActiveConfigTab] = useState<"organize" | "builder" | "library">("organize");
   const [editingForm, setEditingForm] = useState({ name: "", muscle: "", gifUrl: "", secondary: "", substitutions: [] as string[] });
+  const activeSplits = useMemo(
+    () => getActiveSplits(preferences.trainingDays),
+    [preferences.trainingDays],
+  );
 
   const handleSplitLabelChange = (split: Split, value: string) => {
     setPreferences({
@@ -52,6 +60,21 @@ export default function TrainingConfigPage() {
         [split]: value,
       },
     });
+  };
+
+  const handleReorderSplit = (from: Split, to: Split) => {
+    if (from === to) return;
+    const reorderedSources = [...splitOrder];
+    const [moved] = reorderedSources.splice(splitOrder.indexOf(from), 1);
+    reorderedSources.splice(splitOrder.indexOf(to), 0, moved);
+    const selectedDestination = splitOrder[reorderedSources.indexOf(selectedSplit)];
+
+    reorderTrainingSplit(from, to);
+    setSelectedSplit(
+      getActiveSplits(preferences.trainingDays).includes(selectedDestination)
+        ? selectedDestination
+        : activeSplits[0],
+    );
   };
 
   useEffect(() => {
@@ -69,6 +92,12 @@ export default function TrainingConfigPage() {
       setExerciseId(catalog[0].id);
     }
   }, [catalog, exerciseId]);
+
+  useEffect(() => {
+    if (!activeSplits.includes(selectedSplit)) {
+      setSelectedSplit(activeSplits[0]);
+    }
+  }, [activeSplits, selectedSplit]);
 
   const muscleOptions = useMemo(() => {
     const set = new Set<string>();
@@ -154,10 +183,34 @@ export default function TrainingConfigPage() {
 
   return (
     <div className="app-card">
+      <div className="training-config__tabsBar">
+        <div className="training-config__tabs" role="tablist" aria-label="Seções da configuração de treinos">
+          {[
+            { id: "organize", label: "Organizar" },
+            { id: "builder", label: "Montar treino" },
+            { id: "library", label: "Biblioteca" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeConfigTab === tab.id}
+              className={`training-config__tab ${
+                activeConfigTab === tab.id ? "training-config__tab--active" : ""
+              }`}
+              onClick={() => setActiveConfigTab(tab.id as typeof activeConfigTab)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <Link to="/training" className="training-config__backLink">Voltar para os treinos</Link>
+      </div>
+
+      {activeConfigTab === "library" && (
       <Section
         title="Biblioteca de exercícios"
         description="Cadastre variações para montar a divisão do jeito que preferir."
-        action={<Link to="/training">Voltar para os treinos</Link>}
       >
         <form className="training-config__form" onSubmit={handleAddExercise}>
           <div className="training-config__grid">
@@ -319,13 +372,98 @@ export default function TrainingConfigPage() {
           <button type="submit">Adicionar cardio</button>
         </form>
       </Section>
+      )}
 
+      {activeConfigTab === "organize" && (
       <Section
         title="Identificar treinos"
         description="Escolha como cada dia da divisão será apresentado nos treinos e no acompanhamento semanal."
       >
+        <label className="training-config__days">
+          Dias de treino por semana
+          <select
+            value={preferences.trainingDays}
+            onChange={(event) => setPreferences({ trainingDays: Number(event.target.value) })}
+          >
+            {[2, 3, 4, 5, 6, 7].map((days) => (
+              <option key={days} value={days}>
+                {days} dias
+              </option>
+            ))}
+          </select>
+          <small>Os dias ocultos continuam salvos se a quantidade aumentar novamente.</small>
+        </label>
+        <div className="training-config__organizer">
+          <div className="training-config__organizerHeader">
+            <strong>Ordem dos treinos</strong>
+            <span>Arraste para escolher quais ficam nas vagas ativas.</span>
+          </div>
+          <div className="training-config__organizerList">
+            {splitOrder.map((split, index) => {
+              const isActive = index < preferences.trainingDays;
+              const label = (preferences.splitLabels[split] ?? "").trim();
+              const blocks = template[split].am.length + template[split].pm.length;
+              return (
+                <div
+                  key={split}
+                  draggable
+                  className={`training-config__organizerItem ${
+                    isActive ? "training-config__organizerItem--active" : ""
+                  } ${draggingSplit === split ? "training-config__organizerItem--dragging" : ""}`}
+                  onDragStart={(event) => {
+                    setDraggingSplit(split);
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", split);
+                  }}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const from = draggingSplit ?? (event.dataTransfer.getData("text/plain") as Split);
+                    if (from) handleReorderSplit(from, split);
+                    setDraggingSplit(null);
+                  }}
+                  onDragEnd={() => setDraggingSplit(null)}
+                >
+                  <span className="training-config__dragHandle" aria-hidden="true">::</span>
+                  <span className="training-config__organizerPosition">Treino {split}</span>
+                  <span className="training-config__organizerName">{label || "Sem nome"}</span>
+                  <small>{blocks} {blocks === 1 ? "bloco" : "blocos"}</small>
+                  <span className={`training-config__organizerStatus ${
+                    isActive ? "training-config__organizerStatus--active" : ""
+                  }`}>
+                    {isActive ? "Ativo" : "Oculto"}
+                  </span>
+                  <div className="training-config__organizerActions">
+                    <button
+                      type="button"
+                      disabled={index === 0}
+                      aria-label={`Mover treino ${split} para cima`}
+                      onClick={() => handleReorderSplit(split, splitOrder[index - 1])}
+                    >
+                      Subir
+                    </button>
+                    <button
+                      type="button"
+                      disabled={index === splitOrder.length - 1}
+                      aria-label={`Mover treino ${split} para baixo`}
+                      onClick={() => handleReorderSplit(split, splitOrder[index + 1])}
+                    >
+                      Descer
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <small className="training-config__organizerHint">
+            Ao mover, nome, cardio, exercicios e progresso acompanham o treino. As letras mudam conforme a nova posicao.
+          </small>
+        </div>
         <div className="training-config__grid training-config__grid--labels">
-          {splitOrder.map((split) => (
+          {activeSplits.map((split) => (
             <label key={split}>
               Treino {split}
               <input
@@ -337,13 +475,15 @@ export default function TrainingConfigPage() {
           ))}
         </div>
       </Section>
+      )}
 
+      {activeConfigTab === "builder" && (
       <Section title="Montar divisão" description="Selecione o treino e inclua blocos para as duas partes do dia.">
         <div className="training-config__grid training-config__grid--assign">
           <label>
             Divisão
             <select value={selectedSplit} onChange={(e) => setSelectedSplit(e.target.value as Split)}>
-              {splitOrder.map((split) => (
+              {activeSplits.map((split) => (
                 <option key={split} value={split}>
                   Treino {split}
                 </option>
@@ -407,12 +547,13 @@ export default function TrainingConfigPage() {
         </div>
 
         <div className="training-config__preview">
-          {splitOrder.map((split) => (
+          {activeSplits.map((split) => (
             <TrainingDay
               key={split}
               split={split}
               splitLabel={preferences.splitLabels[split] ?? defaultSplitLabels[split]}
               plan={template[split]}
+              availableSplits={activeSplits}
               catalog={catalog}
               cardioCatalog={cardioCatalog}
               onRemoveCardio={(id) => removeAmBlock(split, id)}
@@ -420,16 +561,58 @@ export default function TrainingConfigPage() {
               onRemoveExercise={(id) => removePmExercise(split, id)}
               onUpdateExercise={(id, payload) => updatePmExercise(split, id, payload)}
               onMoveExercise={(id, direction) => movePmExercise(split, id, direction)}
+              onMoveExerciseToSplit={(id, target) => moveExerciseToSplit(split, target, id)}
             />
           ))}
         </div>
       </Section>
+      )}
     </div>
   );
 }
 
 const style = new CSSStyleSheet();
 style.replaceSync(`
+.training-config__tabsBar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: -4px 0 20px;
+  padding: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 28px -24px rgba(15, 23, 42, 0.6);
+}
+.training-config__tabs {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+.training-config__tab {
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 14px;
+  background: transparent;
+  color: #475569;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.training-config__tab--active {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.training-config__backLink {
+  flex-shrink: 0;
+  color: #1d4ed8;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
 .training-config__form {
   display: flex;
   flex-direction: column;
@@ -439,6 +622,95 @@ style.replaceSync(`
 .training-config__grid {
   display: grid;
   gap: 16px;
+}
+.training-config__days {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 320px;
+  margin-bottom: 18px;
+}
+.training-config__days small {
+  color: #64748b;
+  font-weight: 400;
+}
+.training-config__organizer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.training-config__organizerHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.training-config__organizerHeader span,
+.training-config__organizerHint {
+  color: #64748b;
+}
+.training-config__organizerList {
+  display: grid;
+  gap: 8px;
+}
+.training-config__organizerItem {
+  display: grid;
+  grid-template-columns: auto minmax(78px, auto) minmax(120px, 1fr) auto auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.55);
+  border-radius: 12px;
+  background: rgba(241, 245, 249, 0.7);
+  cursor: grab;
+}
+.training-config__organizerItem--active {
+  border-style: solid;
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(239, 246, 255, 0.9);
+}
+.training-config__organizerItem--dragging {
+  opacity: 0.45;
+}
+.training-config__dragHandle {
+  color: #64748b;
+  font-weight: 800;
+  letter-spacing: -3px;
+}
+.training-config__organizerPosition {
+  font-weight: 700;
+}
+.training-config__organizerName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.training-config__organizerItem > small {
+  color: #64748b;
+}
+.training-config__organizerStatus {
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.training-config__organizerStatus--active {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.training-config__organizerActions {
+  display: flex;
+  gap: 6px;
+}
+.training-config__organizerActions button {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+.training-config__organizerActions button:disabled {
+  opacity: 0.35;
 }
 .training-config__grid label {
   display: flex;
@@ -534,6 +806,35 @@ style.replaceSync(`
 @media (min-width: 1024px) {
   .training-config__preview {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .training-config__tabsBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .training-config__tabs {
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .training-config__tab {
+    flex: 1 0 auto;
+  }
+  .training-config__backLink {
+    padding: 0 6px 4px;
+  }
+  .training-config__organizerItem {
+    grid-template-columns: auto auto 1fr auto;
+  }
+  .training-config__organizerItem > small {
+    display: none;
+  }
+  .training-config__organizerStatus {
+    grid-column: 2;
+  }
+  .training-config__organizerActions {
+    grid-column: 3 / -1;
+    justify-content: flex-end;
   }
 }
 `);

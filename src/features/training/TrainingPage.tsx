@@ -1,9 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ProgressBar } from "@/components/ProgressBar";
 import { Section } from "@/components/Section";
+import { parseISODate } from "@/lib/date";
 import { defaultSplitLabels, useTraining } from "./training.store";
-import { splitOrder, todaySplit, trainingProgress } from "./training.service";
+import {
+  getActiveSplits,
+  hasTrainingDayStarted,
+  isTrainingDayCompleted,
+  nextTrainingSplit,
+  trainingProgress,
+} from "./training.service";
 import { TrainingSplit } from "./TrainingSplit";
 import type { Split } from "./training.schema";
 
@@ -16,43 +23,67 @@ export default function TrainingPage() {
     setExerciseSetProgress,
     recordExerciseLoad,
     resetWeek,
+    ensureCurrentWeek,
     preferences,
     setPreferences,
     updatePmExercise,
     catalog,
   } = useTraining();
 
-  const [activeSplit, setActiveSplit] = useState<Split>(preferences.activeSplit ?? todaySplit());
+  const activeSplits = useMemo(
+    () => getActiveSplits(preferences.trainingDays),
+    [preferences.trainingDays],
+  );
+  const preferredSplit = activeSplits.includes(preferences.activeSplit)
+    ? preferences.activeSplit
+    : activeSplits[0];
+  const initialSplit = nextTrainingSplit(template, weekLog, activeSplits, preferredSplit);
+  const [activeSplit, setActiveSplit] = useState<Split>(initialSplit);
   const [activeTab, setActiveTab] = useState<"overview" | "settings">("overview");
 
   useEffect(() => {
-    setActiveSplit(preferences.activeSplit ?? todaySplit());
-  }, [preferences.activeSplit]);
+    ensureCurrentWeek();
+  }, [ensureCurrentWeek]);
+
+  useEffect(() => {
+    if (!activeSplits.includes(activeSplit)) {
+      setActiveSplit(activeSplits[0]);
+    }
+  }, [activeSplit, activeSplits]);
 
   const handleSelectSplit = (split: Split) => {
     setActiveSplit(split);
     setPreferences({ activeSplit: split });
   };
 
-  const summaryProgress = useMemo(() => trainingProgress(template, weekLog), [template, weekLog]);
+  const summaryProgress = useMemo(
+    () => trainingProgress(template, weekLog, activeSplits),
+    [activeSplits, template, weekLog],
+  );
 
-  const resolveSplitLabel = (split: Split) =>
-    (preferences.splitLabels?.[split] ?? defaultSplitLabels[split] ?? "").trim();
+  const resolveSplitLabel = useCallback(
+    (split: Split) =>
+      (preferences.splitLabels?.[split] ?? defaultSplitLabels[split] ?? "").trim(),
+    [preferences.splitLabels],
+  );
 
   const timeline = useMemo(
     () =>
       weekLog
         .slice()
+        .filter((log) => activeSplits.includes(log.split))
         .sort((a, b) => (a.dateISO > b.dateISO ? 1 : -1))
         .map((log) => {
           const label = resolveSplitLabel(log.split);
+          const plan = template[log.split];
           return {
             ...log,
             label: label ? `Treino ${log.split} · ${label}` : `Treino ${log.split}`,
-            completed: (log.completedCardio.length > 0 || log.amDone) && (log.pmDone || log.doneExercises.length > 0),
+            completed: isTrainingDayCompleted(plan, log),
+            started: hasTrainingDayStarted(log),
           };
         }),
-    [weekLog, preferences.splitLabels],
+    [activeSplits, resolveSplitLabel, template, weekLog],
   );
 
   return (
@@ -86,7 +117,7 @@ export default function TrainingPage() {
             </div>
 
             <div className="training-tabs">
-              {splitOrder.map((split) => {
+              {activeSplits.map((split) => {
                 const label = resolveSplitLabel(split);
                 return (
                   <button
@@ -123,7 +154,7 @@ export default function TrainingPage() {
                   const isActive = entry.split === activeSplit;
                   const status = entry.completed
                     ? "Concluído"
-                    : entry.amDone || entry.pmDone
+                    : entry.started
                     ? "Parcial"
                     : "Pendente";
                   return (
@@ -134,7 +165,10 @@ export default function TrainingPage() {
                       onClick={() => handleSelectSplit(entry.split)}
                     >
                       <span className="training-timeline__date">
-                        {new Date(entry.dateISO).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" })}
+                        {parseISODate(entry.dateISO).toLocaleDateString("pt-BR", {
+                          weekday: "short",
+                          day: "2-digit",
+                        })}
                       </span>
                       <strong>{entry.label}</strong>
                       <small>{status}</small>
@@ -236,6 +270,7 @@ style.replaceSync(`
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  margin-top: 20px;
 }
 .training-actions__reset {
   background: transparent;

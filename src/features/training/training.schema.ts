@@ -1,7 +1,7 @@
 // features/training/training.schema.ts
 import { z } from "zod";
 
-export const Split = z.enum(["A", "B", "C", "D", "E"]);
+export const Split = z.enum(["A", "B", "C", "D", "E", "F", "G"]);
 export type Split = z.infer<typeof Split>;
 
 export const CardioKind = z.string();
