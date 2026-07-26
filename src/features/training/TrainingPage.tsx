@@ -9,6 +9,7 @@ import {
   hasTrainingDayStarted,
   isTrainingDayCompleted,
   nextTrainingSplit,
+  sessionProgress,
   trainingProgress,
 } from "./training.service";
 import { TrainingSplit } from "./TrainingSplit";
@@ -40,6 +41,7 @@ export default function TrainingPage() {
   const initialSplit = nextTrainingSplit(template, weekLog, activeSplits, preferredSplit);
   const [activeSplit, setActiveSplit] = useState<Split>(initialSplit);
   const [activeTab, setActiveTab] = useState<"overview" | "settings">("overview");
+  const [immersiveMode, setImmersiveMode] = useState(false);
 
   useEffect(() => {
     ensureCurrentWeek();
@@ -50,6 +52,20 @@ export default function TrainingPage() {
       setActiveSplit(activeSplits[0]);
     }
   }, [activeSplit, activeSplits]);
+
+  useEffect(() => {
+    if (!immersiveMode) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setImmersiveMode(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [immersiveMode]);
 
   const handleSelectSplit = (split: Split) => {
     setActiveSplit(split);
@@ -66,6 +82,20 @@ export default function TrainingPage() {
       (preferences.splitLabels?.[split] ?? defaultSplitLabels[split] ?? "").trim(),
     [preferences.splitLabels],
   );
+
+  const activePlan = template[activeSplit];
+  const activeLog = weekLog.find((log) => log.split === activeSplit);
+  const immersiveProgress = sessionProgress(activePlan, activeLog);
+  const immersiveCompleted = isTrainingDayCompleted(activePlan, activeLog);
+  const immersiveMessage = immersiveCompleted
+    ? "Treino completo. Excelente trabalho — você cumpriu tudo o que planejou!"
+    : immersiveProgress === 0
+    ? "Seu treino está pronto. Comece pelo primeiro bloco e avance uma etapa de cada vez."
+    : immersiveProgress < 0.5
+    ? "Bom começo. Mantenha o ritmo e continue acumulando séries concluídas."
+    : immersiveProgress < 0.85
+    ? "Você já passou da metade. Continue firme até completar o treino."
+    : "Último esforço. Falta pouco para concluir todo o treino!";
 
   const timeline = useMemo(
     () =>
@@ -134,10 +164,20 @@ export default function TrainingPage() {
               })}
             </div>
 
+            <div className="training-immersiveEntry">
+              <div>
+                <strong>Pronto para treinar?</strong>
+                <span>Elimine distrações e acompanhe somente o treino selecionado.</span>
+              </div>
+              <button type="button" onClick={() => setImmersiveMode(true)}>
+                Iniciar modo imersivo
+              </button>
+            </div>
+
             <TrainingSplit
               split={activeSplit}
-              plan={template[activeSplit]}
-              log={weekLog.find((log) => log.split === activeSplit)}
+              plan={activePlan}
+              log={activeLog}
               catalog={catalog}
               preferences={preferences}
               onTogglePart={toggleSessionPart}
@@ -215,6 +255,60 @@ export default function TrainingPage() {
           </div>
         )}
       </Section>
+
+      {immersiveMode && (
+        <div className="training-immersive" role="dialog" aria-modal="true" aria-label={`Modo imersivo do treino ${activeSplit}`}>
+          <div className="training-immersive__topbar">
+            <div>
+              <span className="training-immersive__eyebrow">Modo imersivo</span>
+              <h2>
+                Treino {activeSplit}
+                {resolveSplitLabel(activeSplit) ? ` · ${resolveSplitLabel(activeSplit)}` : ""}
+              </h2>
+            </div>
+            <button type="button" className="training-immersive__close" onClick={() => setImmersiveMode(false)} autoFocus>
+              Sair
+            </button>
+          </div>
+
+          <main className="training-immersive__content">
+            <section className={`training-immersive__motivation ${
+              immersiveCompleted ? "training-immersive__motivation--completed" : ""
+            }`}>
+              <div className="training-immersive__progressHeader">
+                <strong>{Math.round(immersiveProgress * 100)}% concluído</strong>
+                <span>{immersiveCompleted ? "Missão cumprida" : "Continue avançando"}</span>
+              </div>
+              <ProgressBar value={immersiveProgress} label="Progresso deste treino" />
+              <p>{immersiveMessage}</p>
+            </section>
+
+            <TrainingSplit
+              split={activeSplit}
+              plan={activePlan}
+              log={activeLog}
+              catalog={catalog}
+              preferences={preferences}
+              onTogglePart={toggleSessionPart}
+              onToggleCardio={toggleCardioBlock}
+              onSetSetProgress={setExerciseSetProgress}
+              onRecordLoad={recordExerciseLoad}
+              onUpdateExercise={updatePmExercise}
+            />
+
+            <div className="training-immersive__footer">
+              <strong>
+                {immersiveCompleted
+                  ? "Tudo concluído. Recupere-se e volte ainda mais forte."
+                  : "Finalize todos os blocos antes de encerrar."}
+              </strong>
+              <button type="button" onClick={() => setImmersiveMode(false)}>
+                Sair do modo imersivo
+              </button>
+            </div>
+          </main>
+        </div>
+      )}
     </div>
   );
 }
@@ -225,6 +319,127 @@ style.replaceSync(`
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+.training-immersiveEntry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(219, 234, 254, 0.85), rgba(239, 246, 255, 0.75));
+}
+.training-immersiveEntry > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.training-immersiveEntry span {
+  color: #475569;
+  font-size: 0.88rem;
+}
+.training-immersiveEntry button {
+  flex-shrink: 0;
+  background: #1d4ed8;
+  color: white;
+}
+.training-immersive {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.14), transparent 34%),
+    #f8fafc;
+}
+.training-immersive__topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px max(20px, calc((100vw - 960px) / 2));
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(248, 250, 252, 0.94);
+  backdrop-filter: blur(14px);
+}
+.training-immersive__topbar h2 {
+  margin: 2px 0 0;
+  font-size: clamp(1.25rem, 3vw, 1.8rem);
+}
+.training-immersive__eyebrow {
+  color: #2563eb;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.training-immersive__close {
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: white;
+  color: #334155;
+}
+.training-immersive__content {
+  width: min(920px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 28px 0 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.training-immersive__motivation {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 22px 50px -38px rgba(29, 78, 216, 0.65);
+}
+.training-immersive__motivation--completed {
+  border-color: rgba(34, 197, 94, 0.45);
+  background: rgba(240, 253, 244, 0.96);
+}
+.training-immersive__progressHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.training-immersive__progressHeader strong {
+  color: #1d4ed8;
+  font-size: 1.35rem;
+}
+.training-immersive__motivation--completed .training-immersive__progressHeader strong {
+  color: #15803d;
+}
+.training-immersive__progressHeader span,
+.training-immersive__motivation p {
+  color: #475569;
+}
+.training-immersive__motivation p {
+  margin: 0;
+  font-weight: 600;
+}
+.training-immersive__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: #0f172a;
+  color: white;
+}
+.training-immersive__footer button {
+  flex-shrink: 0;
+  background: white;
+  color: #0f172a;
 }
 .training-tabs {
   display: inline-flex;
@@ -383,6 +598,30 @@ style.replaceSync(`
   text-transform: capitalize;
 }
 @media (max-width: 640px) {
+  .training-immersiveEntry,
+  .training-immersive__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .training-immersiveEntry button,
+  .training-immersive__footer button {
+    width: 100%;
+  }
+  .training-immersive__topbar {
+    padding: 12px 16px;
+  }
+  .training-immersive__content {
+    width: min(100% - 20px, 920px);
+    padding-top: 14px;
+  }
+  .training-immersive__motivation {
+    padding: 16px;
+  }
+  .training-immersive__progressHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
   .training-actions {
     flex-direction: column;
     align-items: stretch;
