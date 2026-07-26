@@ -7,6 +7,12 @@ import { getActiveSplits, splitOrder } from "./training.service";
 import { normalizeExerciseName, parseExerciseText } from "./training.import";
 import type { Split } from "./training.schema";
 import { TrainingDay } from "./TrainingDay";
+import {
+  createSharedTrainingPlan,
+  parseSharedTrainingPlan,
+  sharedPlanFilename,
+  type SharedTrainingPlan,
+} from "./training.share";
 
 export default function TrainingConfigPage() {
   const {
@@ -28,6 +34,7 @@ export default function TrainingConfigPage() {
     moveExerciseToSplit,
     reorderTrainingSplit,
     setPreferences,
+    importSharedPlan,
   } = useTraining();
 
   const [newExercise, setNewExercise] = useState({
@@ -49,7 +56,11 @@ export default function TrainingConfigPage() {
   const [rest, setRest] = useState("60");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draggingSplit, setDraggingSplit] = useState<Split | null>(null);
-  const [activeConfigTab, setActiveConfigTab] = useState<"organize" | "builder" | "library">("organize");
+  const [activeConfigTab, setActiveConfigTab] = useState<"organize" | "builder" | "library" | "share">("organize");
+  const [shareTitle, setShareTitle] = useState("Meu treino");
+  const [shareMessage, setShareMessage] = useState("");
+  const [pendingSharedPlan, setPendingSharedPlan] = useState<SharedTrainingPlan | null>(null);
+  const [shareError, setShareError] = useState("");
   const [editingForm, setEditingForm] = useState({ name: "", muscle: "", gifUrl: "", secondary: "", substitutions: [] as string[] });
   const activeSplits = useMemo(
     () => getActiveSplits(preferences.trainingDays),
@@ -225,6 +236,79 @@ export default function TrainingConfigPage() {
     setEditingId(null);
   };
 
+  const buildShareFile = () => {
+    const plan = createSharedTrainingPlan(shareTitle, template, preferences, catalog);
+    return new File(
+      [JSON.stringify(plan, null, 2)],
+      sharedPlanFilename(plan.title),
+      { type: "application/json" },
+    );
+  };
+
+  const handleDownloadPlan = () => {
+    const file = buildShareFile();
+    const url = URL.createObjectURL(file);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = file.name;
+    link.click();
+    URL.revokeObjectURL(url);
+    setShareMessage("Arquivo do treino exportado. Agora você pode enviá-lo como anexo.");
+    setShareError("");
+  };
+
+  const handleSharePlan = async () => {
+    const file = buildShareFile();
+    const shareData = {
+      title: shareTitle.trim() || "Meu treino",
+      text: "Importe este treino no FitApp.",
+      files: [file],
+    };
+    try {
+      if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+        await navigator.share(shareData);
+        setShareMessage("Treino enviado pelo compartilhamento do dispositivo.");
+        setShareError("");
+        return;
+      }
+      handleDownloadPlan();
+      setShareMessage("O compartilhamento direto não está disponível neste navegador. O arquivo foi baixado para você enviar.");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setShareError("Não foi possível abrir o compartilhamento. Você ainda pode baixar o arquivo.");
+    }
+  };
+
+  const handleSharedFile = async (file?: File) => {
+    setPendingSharedPlan(null);
+    setShareMessage("");
+    setShareError("");
+    if (!file) return;
+    if (file.size > 2_000_000) {
+      setShareError("O arquivo é muito grande. Escolha um arquivo de treino do FitApp com até 2 MB.");
+      return;
+    }
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown;
+      setPendingSharedPlan(parseSharedTrainingPlan(parsed));
+    } catch {
+      setShareError("Este arquivo não é um treino válido do FitApp ou está danificado.");
+    }
+  };
+
+  const handleConfirmSharedPlan = () => {
+    if (!pendingSharedPlan) return;
+    const confirmed = window.confirm(
+      `Importar “${pendingSharedPlan.title}”? Sua divisão atual será substituída e o progresso da semana será reiniciado.`,
+    );
+    if (!confirmed) return;
+    importSharedPlan(pendingSharedPlan);
+    setShareTitle(pendingSharedPlan.title);
+    setPendingSharedPlan(null);
+    setShareError("");
+    setShareMessage("Treino importado. A divisão e a biblioteca já estão prontas para uso.");
+  };
+
   return (
     <div className="app-card">
       <div className="training-config__tabsBar">
@@ -233,6 +317,7 @@ export default function TrainingConfigPage() {
             { id: "organize", label: "Organizar" },
             { id: "builder", label: "Montar treino" },
             { id: "library", label: "Biblioteca" },
+            { id: "share", label: "Compartilhar" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -685,6 +770,93 @@ export default function TrainingConfigPage() {
         </div>
       </Section>
       )}
+
+      {activeConfigTab === "share" && (
+        <Section
+          title="Compartilhar treinos"
+          description="Envie sua divisão para outra pessoa ou importe um treino recebido."
+        >
+          <div className="training-config__shareGrid">
+            <article className="training-config__shareCard">
+              <div>
+                <span className="training-config__shareEyebrow">EXPORTAR</span>
+                <h3>Enviar meu treino</h3>
+                <p>
+                  O arquivo inclui os {preferences.trainingDays} treinos ativos, exercícios,
+                  séries, repetições, descanso e cardio.
+                </p>
+              </div>
+              <label>
+                Nome do plano
+                <input
+                  value={shareTitle}
+                  maxLength={100}
+                  onChange={(event) => setShareTitle(event.target.value)}
+                  placeholder="Ex: Hipertrofia 4 dias"
+                />
+              </label>
+              <div className="training-config__shareActions">
+                <button type="button" onClick={handleSharePlan}>
+                  Enviar treino
+                </button>
+                <button type="button" className="training-config__shareSecondary" onClick={handleDownloadPlan}>
+                  Baixar arquivo
+                </button>
+              </div>
+              <small>
+                Cargas utilizadas, histórico e progresso semanal não são compartilhados.
+              </small>
+            </article>
+
+            <article className="training-config__shareCard">
+              <div>
+                <span className="training-config__shareEyebrow">IMPORTAR</span>
+                <h3>Recebi um treino</h3>
+                <p>Selecione o arquivo <strong>.fitapp.json</strong> enviado por outra pessoa.</p>
+              </div>
+              <label className="training-config__filePicker">
+                Escolher arquivo
+                <input
+                  type="file"
+                  accept=".json,.fitapp.json,application/json"
+                  onChange={(event) => void handleSharedFile(event.target.files?.[0])}
+                />
+              </label>
+
+              {pendingSharedPlan && (
+                <div className="training-config__sharePreview">
+                  <strong>{pendingSharedPlan.title}</strong>
+                  <span>
+                    {pendingSharedPlan.workouts.length} treinos ·{" "}
+                    {pendingSharedPlan.workouts.reduce(
+                      (total, workout) => total + workout.exercises.length,
+                      0,
+                    )} exercícios
+                  </span>
+                  <ul>
+                    {pendingSharedPlan.workouts.map((workout, index) => (
+                      <li key={`${workout.label}-${index}`}>
+                        <span>Treino {splitOrder[index]} · {workout.label}</span>
+                        <small>{workout.exercises.length} exercícios</small>
+                      </li>
+                    ))}
+                  </ul>
+                  <p>
+                    A importação substitui sua divisão atual, reinicia o acompanhamento semanal
+                    e mantém os exercícios que já existem na sua biblioteca.
+                  </p>
+                  <button type="button" onClick={handleConfirmSharedPlan}>
+                    Confirmar e importar
+                  </button>
+                </div>
+              )}
+            </article>
+          </div>
+
+          {shareMessage && <p className="training-config__shareNotice">{shareMessage}</p>}
+          {shareError && <p className="training-config__shareError" role="alert">{shareError}</p>}
+        </Section>
+      )}
     </div>
   );
 }
@@ -1012,12 +1184,121 @@ style.replaceSync(`
   display: grid;
   gap: 16px;
 }
+.training-config__shareGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.training-config__shareCard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.75);
+}
+.training-config__shareCard h3,
+.training-config__shareCard p {
+  margin: 0;
+}
+.training-config__shareCard p,
+.training-config__shareCard small {
+  color: #64748b;
+}
+.training-config__shareCard label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+}
+.training-config__shareEyebrow {
+  color: #2563eb;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.training-config__shareActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.training-config__shareSecondary,
+.training-config__filePicker {
+  border: 1px solid rgba(37, 99, 235, 0.35);
+  background: transparent !important;
+  color: #1d4ed8 !important;
+}
+.training-config__filePicker {
+  display: inline-flex !important;
+  align-items: center;
+  align-self: flex-start;
+  padding: 9px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.training-config__filePicker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+.training-config__sharePreview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 12px;
+  background: rgba(219, 234, 254, 0.5);
+}
+.training-config__sharePreview > span {
+  color: #475569;
+  font-size: 0.9rem;
+}
+.training-config__sharePreview ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.training-config__sharePreview li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.75);
+}
+.training-config__sharePreview p {
+  font-size: 0.85rem;
+}
+.training-config__shareNotice,
+.training-config__shareError {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+.training-config__shareNotice {
+  background: rgba(220, 252, 231, 0.8);
+  color: #15803d;
+}
+.training-config__shareError {
+  background: rgba(254, 226, 226, 0.8);
+  color: #b91c1c;
+}
 @media (min-width: 1024px) {
   .training-config__preview {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 700px) {
+  .training-config__shareGrid {
+    grid-template-columns: 1fr;
+  }
   .training-config__tabsBar {
     align-items: stretch;
     flex-direction: column;

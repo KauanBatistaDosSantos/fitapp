@@ -130,11 +130,12 @@ Os totais históricos podem ser editados ou excluídos.
 
 Abra **Treino semanal**, acesse **Configurar treinos** e depois abra a página completa de configuração.
 
-Ela é dividida em três abas:
+Ela é dividida em quatro abas:
 
 - **Organizar**
 - **Montar treino**
 - **Biblioteca**
+- **Compartilhar**
 
 ### Aba Organizar
 
@@ -209,6 +210,26 @@ Na prévia de cada divisão é possível:
 - Remover blocos que não serão utilizados.
 
 Ao mover um exercício para outro treino, suas informações e o progresso já registrado acompanham o exercício.
+
+### Aba Compartilhar
+
+Use essa aba para enviar sua divisão a amigos ou importar um treino recebido.
+
+Para enviar:
+
+1. Dê um nome ao plano.
+2. Use **Enviar treino** para abrir o compartilhamento do celular ou dispositivo.
+3. Se o compartilhamento direto não estiver disponível, use **Baixar arquivo** e envie o arquivo `.fitapp.json` como anexo.
+
+O arquivo inclui somente os treinos ativos, seus nomes, exercícios, séries, repetições, descanso e cardio. Cargas utilizadas, histórico e progresso semanal não são compartilhados.
+
+Para receber:
+
+1. Abra **Recebi um treino** e selecione o arquivo enviado.
+2. Confira a prévia com a quantidade de treinos e exercícios.
+3. Clique em **Confirmar e importar**.
+
+A importação mantém a biblioteca existente, adiciona os exercícios novos, substitui a divisão atual e reinicia o acompanhamento da semana. Antes da alteração, o aplicativo pede uma confirmação.
 
 ### Realizar um treino
 
@@ -391,4 +412,4 @@ src/
 
 ## Escopo atual
 
-O aplicativo foi desenvolvido para acompanhamento individual no navegador. Recursos como autenticação, sincronização entre dispositivos, exportação, backup automático e compartilhamento com profissionais ainda não fazem parte da versão atual.
+O aplicativo armazena os dados localmente no navegador. Autenticação, sincronização automática entre dispositivos e backup em nuvem ainda não fazem parte da versão atual. Os treinos podem ser exportados e compartilhados manualmente pela aba **Compartilhar**.

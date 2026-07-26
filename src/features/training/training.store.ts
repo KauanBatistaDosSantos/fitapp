@@ -11,6 +11,7 @@ import {
 import { getActiveSplits, splitOrder } from "./training.service";
 import { inferMuscleGroup, repairImportedExercise } from "./training.import";
 import { isoDate } from "@/lib/date";
+import type { SharedTrainingPlan } from "./training.share";
 
 export type ExerciseCatalogItem = {
   id: string;
@@ -79,6 +80,7 @@ type TrainingState = {
   setPreferences: (patch: Partial<TrainingPreferences>) => void;
   ensureCurrentWeek: () => void;
   resetWeek: () => void;
+  importSharedPlan: (plan: SharedTrainingPlan) => void;
 };
 
 const useSeedData = import.meta.env.DEV;
@@ -645,6 +647,99 @@ export const useTraining = create<TrainingState>((set) => ({
       save("tr:week", weekLog);
       return { weekLog };
     }),
+
+  importSharedPlan: (plan) =>
+    set((state) => {
+      const catalog = structuredClone(state.catalog);
+      const catalogByName = new Map(
+        catalog.map((item) => [normalizeCatalogName(item.name), item]),
+      );
+
+      for (const workout of plan.workouts) {
+        for (const exercise of workout.exercises) {
+          const key = normalizeCatalogName(exercise.name);
+          if (catalogByName.has(key)) continue;
+          const muscle = exercise.muscles?.[0] ?? inferMuscleGroup(exercise.name);
+          const item: ExerciseCatalogItem = {
+            id: uid(),
+            name: exercise.name,
+            muscle,
+            muscles: exercise.muscles?.length ? exercise.muscles : [muscle],
+            secondaryMuscles: exercise.secondaryMuscles,
+            gifUrl: exercise.gifUrl,
+            defaultSets: exercise.sets,
+            defaultReps: exercise.reps,
+          };
+          catalog.push(item);
+          catalogByName.set(key, item);
+        }
+      }
+
+      for (const workout of plan.workouts) {
+        for (const exercise of workout.exercises) {
+          const item = catalogByName.get(normalizeCatalogName(exercise.name));
+          if (!item || !exercise.substitutions?.length) continue;
+          const substitutionIds = exercise.substitutions
+            .map((name) => catalogByName.get(normalizeCatalogName(name))?.id)
+            .filter((id): id is string => Boolean(id));
+          if (substitutionIds.length) item.substitutions = substitutionIds;
+        }
+      }
+
+      const template = structuredClone(emptyTemplate);
+      const splitLabels = { ...state.preferences.splitLabels };
+      plan.workouts.forEach((workout, index) => {
+        const split = splitOrder[index];
+        splitLabels[split] = workout.label;
+        template[split] = {
+          split,
+          am: workout.cardio.map((block) => ({ ...block, id: uid() })),
+          pm: workout.exercises.map((exercise) => {
+            const catalogItem = catalogByName.get(normalizeCatalogName(exercise.name));
+            return {
+              id: uid(),
+              catalogId: catalogItem?.id,
+              name: exercise.name,
+              sets: exercise.sets,
+              reps: exercise.reps,
+              restSec: exercise.restSec,
+              notes: exercise.notes,
+              gifUrl: exercise.gifUrl,
+              muscles: exercise.muscles,
+              secondaryMuscles: exercise.secondaryMuscles,
+              substitutions: exercise.substitutions
+                ?.map((name) => catalogByName.get(normalizeCatalogName(name))?.id)
+                .filter((id): id is string => Boolean(id)),
+            };
+          }),
+        };
+      });
+
+      const trainingDays = plan.workouts.length;
+      const preferences: TrainingPreferences = {
+        ...state.preferences,
+        trainingDays,
+        activeSplit: "A",
+        splitLabels,
+      };
+      const cardioKinds = new Set(state.cardioCatalog.map((item) => item.kind.toLocaleLowerCase()));
+      const cardioCatalog = [...state.cardioCatalog];
+      plan.workouts.forEach((workout) => {
+        workout.cardio.forEach(({ kind }) => {
+          if (cardioKinds.has(kind.toLocaleLowerCase())) return;
+          cardioKinds.add(kind.toLocaleLowerCase());
+          cardioCatalog.push({ id: uid(), kind });
+        });
+      });
+      const weekLog = buildWeekLog();
+
+      save("tr:catalog", catalog);
+      save("tr:cardioCat", cardioCatalog);
+      save("tr:template", template);
+      save("tr:prefs", preferences);
+      save("tr:week", weekLog);
+      return { catalog, cardioCatalog, template, preferences, weekLog };
+    }),
 }));
 
 function buildSetsMap(exercises: Exercise[]) {
@@ -652,4 +747,8 @@ function buildSetsMap(exercises: Exercise[]) {
     acc[exercise.id] = exercise.sets;
     return acc;
   }, {});
+}
+
+function normalizeCatalogName(name: string) {
+  return name.trim().toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }

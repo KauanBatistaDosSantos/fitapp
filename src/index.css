@@ -194,7 +194,10 @@ html[data-theme="dark"] .app-shell :is(
   .empty-state,
   .training-config__bulkImport,
   .training-config__importPreview,
-  .training-config__importPreview li
+  .training-config__importPreview li,
+  .training-config__shareCard,
+  .training-config__sharePreview,
+  .training-config__sharePreview li
 ) {
   background: var(--surface-soft) !important;
   color: var(--text) !important;
