@@ -1,19 +1,24 @@
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { Link, Outlet, ScrollRestoration, useLocation } from "react-router-dom";
 import "./App.css";
 
 type AppTheme = "light" | "dark" | "colorful";
+type AppThemePreference = "system" | AppTheme;
 
-const themeLabels: Record<AppTheme, string> = {
+const themeLabels: Record<AppThemePreference, string> = {
+  system: "Sistema",
   light: "Claro",
   dark: "Escuro",
   colorful: "Colorido",
 };
 
-function loadTheme(): AppTheme {
-  const saved = localStorage.getItem("fitjourney:theme");
-  return saved === "dark" || saved === "colorful" ? saved : "light";
+function loadTheme(): AppThemePreference {
+  const saved = localStorage.getItem("fitjourney:theme-choice-v2");
+  return saved === "light" || saved === "dark" || saved === "colorful" ? saved : "system";
 }
+
+const systemTheme = (): AppTheme =>
+  window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 
 const TITLES: Record<string, string> = {
   "/": "Seus progressos",
@@ -27,7 +32,13 @@ const TITLES: Record<string, string> = {
   "/weight/config": "Configurar peso",
 };
 
-function Header({ theme, onThemeChange }: { theme: AppTheme; onThemeChange: (theme: AppTheme) => void }) {
+function Header({
+  theme,
+  onThemeChange,
+}: {
+  theme: AppThemePreference;
+  onThemeChange: (theme: AppThemePreference) => void;
+}) {
   const location = useLocation();
   const title = TITLES[location.pathname] ?? "Fit Journey";
   const isHome = location.pathname === "/";
@@ -47,8 +58,8 @@ function Header({ theme, onThemeChange }: { theme: AppTheme; onThemeChange: (the
         <div className="app-header-spacer" />
         <label className="app-theme">
           <span>Tema</span>
-          <select value={theme} onChange={(event) => onThemeChange(event.target.value as AppTheme)}>
-            {(Object.keys(themeLabels) as AppTheme[]).map((value) => (
+          <select value={theme} onChange={(event) => onThemeChange(event.target.value as AppThemePreference)}>
+            {(Object.keys(themeLabels) as AppThemePreference[]).map((value) => (
               <option key={value} value={value}>
                 {themeLabels[value]}
               </option>
@@ -66,12 +77,23 @@ function Header({ theme, onThemeChange }: { theme: AppTheme; onThemeChange: (the
 }
 
 export default function AppShell() {
-  const [theme, setTheme] = useState<AppTheme>(loadTheme);
+  const [theme, setTheme] = useState<AppThemePreference>(loadTheme);
+  const [deviceTheme, setDeviceTheme] = useState<AppTheme>(systemTheme);
+  const appliedTheme = theme === "system" ? deviceTheme : theme;
 
   useLayoutEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("fitjourney:theme", theme);
-  }, [theme]);
+    document.documentElement.dataset.theme = appliedTheme;
+    localStorage.setItem("fitjourney:theme-choice-v2", theme);
+  }, [appliedTheme, theme]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      setDeviceTheme(event.matches ? "dark" : "light");
+    };
+    media.addEventListener("change", handleChange);
+    return () => media.removeEventListener("change", handleChange);
+  }, []);
 
   return (
     <div className="app-shell">

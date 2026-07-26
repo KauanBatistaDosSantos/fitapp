@@ -9,6 +9,7 @@ import {
   isCurrentWeekLog,
 } from "./training.seed";
 import { getActiveSplits, splitOrder } from "./training.service";
+import { inferMuscleGroup, repairImportedExercise } from "./training.import";
 import { isoDate } from "@/lib/date";
 
 export type ExerciseCatalogItem = {
@@ -19,6 +20,8 @@ export type ExerciseCatalogItem = {
   muscles?: string[];
   secondaryMuscles?: string[];
   substitutions?: string[];
+  defaultSets?: number;
+  defaultReps?: string;
 };
 export type CardioCatalogItem = { id: string; kind: CardioKind };
 
@@ -53,6 +56,8 @@ type TrainingState = {
     muscles?: string[];
     secondaryMuscles?: string[];
     substitutions?: string[];
+    defaultSets?: number;
+    defaultReps?: string;
   }) => void;
   updateCatalogExercise: (id: string, patch: Partial<ExerciseCatalogItem>) => void;
   removeCatalogExercise: (id: string) => void;
@@ -96,17 +101,58 @@ const defaultPreferences: TrainingPreferences = {
   trainingDays: 5,
 };
 
-const catalogFallback = () => load("tr:catalog", useSeedData ? trainingCatalogSeed : []);
+const catalogFallback = () => {
+  const loaded = load<ExerciseCatalogItem[]>("tr:catalog", useSeedData ? trainingCatalogSeed : []);
+  let changed = false;
+  const catalog = loaded.map((item) => {
+    const repaired = repairImportedExercise(item.name, item.defaultReps);
+    if (repaired.name === item.name && repaired.reps === item.defaultReps) return item;
+    changed = true;
+    const muscle = item.muscle === "Não informado" ? inferMuscleGroup(repaired.name) : item.muscle;
+    return {
+      ...item,
+      name: repaired.name,
+      muscle,
+      muscles:
+        !item.muscles || item.muscles.includes("Não informado")
+          ? [muscle, ...(item.secondaryMuscles ?? [])]
+          : item.muscles,
+      defaultReps: repaired.reps,
+    };
+  });
+  if (changed) save("tr:catalog", catalog);
+  return catalog;
+};
 const cardioFallback = () => load("tr:cardioCat", useSeedData ? cardioCatalogSeed : []);
 const templateFallback = () => {
   const fallback = useSeedData ? trainingTemplateSeed : emptyTemplate;
   const loaded = load<Partial<TrainingTemplate>>("tr:template", fallback);
-  return Object.fromEntries(
+  let changed = false;
+  const template = Object.fromEntries(
     splitOrder.map((split) => [
       split,
       loaded[split] ?? { split, am: [], pm: [] },
     ]),
   ) as TrainingTemplate;
+  splitOrder.forEach((split) => {
+    template[split].pm = template[split].pm.map((exercise) => {
+      const repaired = repairImportedExercise(exercise.name, exercise.reps);
+      if (repaired.name === exercise.name && repaired.reps === exercise.reps) return exercise;
+      changed = true;
+      const inferredMuscle = inferMuscleGroup(repaired.name);
+      return {
+        ...exercise,
+        name: repaired.name,
+        reps: repaired.reps ?? exercise.reps,
+        muscles:
+          !exercise.muscles || exercise.muscles.includes("Não informado")
+            ? [inferredMuscle]
+            : exercise.muscles,
+      };
+    });
+  });
+  if (changed) save("tr:template", template);
+  return template;
 };
 const weekFallback = () => {
   const fallback = buildWeekLog();
@@ -150,7 +196,16 @@ export const useTraining = create<TrainingState>((set) => ({
   weekLog: weekFallback(),
   preferences: preferencesFallback(),
 
-  addCatalogExercise: ({ name, muscle, gifUrl, muscles, secondaryMuscles, substitutions }) =>
+  addCatalogExercise: ({
+    name,
+    muscle,
+    gifUrl,
+    muscles,
+    secondaryMuscles,
+    substitutions,
+    defaultSets,
+    defaultReps,
+  }) =>
     set((state) => {
       const entry: ExerciseCatalogItem = {
         id: uid(),
@@ -160,6 +215,8 @@ export const useTraining = create<TrainingState>((set) => ({
         muscles: (muscles && muscles.length > 0 ? muscles : [muscle]).filter(Boolean),
         secondaryMuscles: secondaryMuscles?.filter(Boolean),
         substitutions: substitutions?.filter(Boolean),
+        defaultSets,
+        defaultReps,
       };
       const catalog = [...state.catalog, entry];
       save("tr:catalog", catalog);

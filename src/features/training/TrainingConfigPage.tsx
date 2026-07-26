@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { Section } from "@/components/Section";
 import { defaultSplitLabels, useTraining } from "./training.store";
 import { getActiveSplits, splitOrder } from "./training.service";
+import { normalizeExerciseName, parseExerciseText } from "./training.import";
 import type { Split } from "./training.schema";
 import { TrainingDay } from "./TrainingDay";
 
@@ -37,6 +38,8 @@ export default function TrainingConfigPage() {
     substitutions: [] as string[],
   });
   const [newCardio, setNewCardio] = useState("");
+  const [bulkExerciseText, setBulkExerciseText] = useState("");
+  const [bulkImportMessage, setBulkImportMessage] = useState("");
   const [selectedSplit, setSelectedSplit] = useState<Split>("A");
   const [cardioKind, setCardioKind] = useState(cardioCatalog[0]?.kind ?? "");
   const [cardioMinutes, setCardioMinutes] = useState("30");
@@ -51,6 +54,18 @@ export default function TrainingConfigPage() {
   const activeSplits = useMemo(
     () => getActiveSplits(preferences.trainingDays),
     [preferences.trainingDays],
+  );
+  const parsedExercises = useMemo(
+    () => parseExerciseText(bulkExerciseText),
+    [bulkExerciseText],
+  );
+  const catalogNames = useMemo(
+    () => new Set(catalog.map((item) => normalizeExerciseName(item.name))),
+    [catalog],
+  );
+  const newParsedExercises = useMemo(
+    () => parsedExercises.filter((exercise) => !catalogNames.has(normalizeExerciseName(exercise.name))),
+    [catalogNames, parsedExercises],
   );
 
   const handleSplitLabelChange = (split: Split, value: string) => {
@@ -89,7 +104,10 @@ export default function TrainingConfigPage() {
     if (catalog.length === 0 && exerciseId !== "") {
       setExerciseId("");
     } else if (catalog.length > 0 && !catalog.some((item) => item.id === exerciseId)) {
-      setExerciseId(catalog[0].id);
+      const firstExercise = catalog[0];
+      setExerciseId(firstExercise.id);
+      if (firstExercise.defaultSets) setSets(String(firstExercise.defaultSets));
+      if (firstExercise.defaultReps) setReps(firstExercise.defaultReps);
     }
   }, [catalog, exerciseId]);
 
@@ -125,6 +143,32 @@ export default function TrainingConfigPage() {
       muscles: [newExercise.muscle.trim(), ...secondary],
     });
     setNewExercise({ name: "", muscle: "", gifUrl: "", secondary: "", substitutions: [] });
+  };
+
+  const handleBulkImport = () => {
+    if (newParsedExercises.length === 0) return;
+    newParsedExercises.forEach((exercise) => {
+      addCatalogExercise({
+        name: exercise.name,
+        muscle: exercise.muscle,
+        muscles: [exercise.muscle],
+        defaultSets: exercise.sets,
+        defaultReps: exercise.reps,
+      });
+    });
+    setBulkImportMessage(
+      `${newParsedExercises.length} ${
+        newParsedExercises.length === 1 ? "exercício adicionado" : "exercícios adicionados"
+      } à biblioteca.`,
+    );
+    setBulkExerciseText("");
+  };
+
+  const handleExerciseSelection = (id: string) => {
+    setExerciseId(id);
+    const selected = catalog.find((item) => item.id === id);
+    if (selected?.defaultSets) setSets(String(selected.defaultSets));
+    if (selected?.defaultReps) setReps(selected.defaultReps);
   };
 
   const handleAddCardio = (evt: FormEvent) => {
@@ -212,6 +256,75 @@ export default function TrainingConfigPage() {
         title="Biblioteca de exercícios"
         description="Cadastre variações para montar a divisão do jeito que preferir."
       >
+        <div className="training-config__bulkImport">
+          <div>
+            <h3>Importar exercícios por texto</h3>
+            <p>
+              Cole uma lista com nomes, séries e repetições. O app reconhece formatos como
+              <strong> 4×6–10</strong>, <strong>3x12</strong> e <strong>3x30-60 segundos</strong>.
+            </p>
+          </div>
+          <textarea
+            value={bulkExerciseText}
+            onChange={(event) => {
+              setBulkExerciseText(event.target.value);
+              setBulkImportMessage("");
+            }}
+            rows={8}
+            placeholder={"Supino reto com halteres\t4×6–10\nRemada baixa\t3×8–12\nPrancha\t3x30-60 segundos"}
+          />
+
+          {bulkExerciseText.trim() && (
+            <div className="training-config__importPreview">
+              <div className="training-config__importSummary">
+                <strong>{parsedExercises.length} exercício(s) reconhecido(s)</strong>
+                <span>
+                  {newParsedExercises.length} novo(s)
+                  {parsedExercises.length > newParsedExercises.length
+                    ? ` · ${parsedExercises.length - newParsedExercises.length} duplicado(s) ignorado(s)`
+                    : ""}
+                </span>
+              </div>
+              {parsedExercises.length > 0 ? (
+                <ul>
+                  {parsedExercises.map((exercise) => {
+                    const duplicate = catalogNames.has(normalizeExerciseName(exercise.name));
+                    return (
+                      <li key={normalizeExerciseName(exercise.name)} className={duplicate ? "training-config__importDuplicate" : ""}>
+                        <div>
+                          <strong>{exercise.name}</strong>
+                          <span>{exercise.muscle}</span>
+                        </div>
+                        <span>
+                          {exercise.sets && exercise.reps
+                            ? `${exercise.sets} × ${exercise.reps}`
+                            : "Sem padrão de séries"}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="training-config__importEmpty">
+                  Ainda não foi possível identificar exercícios. Separe os itens por linha, tabulação ou ponto e vírgula.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="training-config__bulkActions">
+            <button type="button" onClick={handleBulkImport} disabled={newParsedExercises.length === 0}>
+              Adicionar {newParsedExercises.length || ""} à biblioteca
+            </button>
+            {bulkExerciseText && (
+              <button type="button" className="training-config__bulkClear" onClick={() => setBulkExerciseText("")}>
+                Limpar
+              </button>
+            )}
+          </div>
+          {bulkImportMessage && <p className="training-config__importSuccess">{bulkImportMessage}</p>}
+        </div>
+
         <form className="training-config__form" onSubmit={handleAddExercise}>
           <div className="training-config__grid">
             <label>
@@ -282,6 +395,11 @@ export default function TrainingConfigPage() {
               <div>
                 <strong>{item.name}</strong>
                 <span className="training-config__catalogSubtitle">{[item.muscle, ...(item.secondaryMuscles ?? [])].filter(Boolean).join(", ")}</span>
+                {item.defaultSets && item.defaultReps && (
+                  <span className="training-config__catalogSubtitle">
+                    Padrão: {item.defaultSets} × {item.defaultReps}
+                  </span>
+                )}
                 {item.gifUrl && (
                   <a href={item.gifUrl} target="_blank" rel="noreferrer" className="training-config__catalogLink">
                     Ver demonstração
@@ -517,7 +635,7 @@ export default function TrainingConfigPage() {
             <h4>Adicionar exercício</h4>
             <label>
               Exercício
-              <select value={exerciseId} onChange={(e) => setExerciseId(e.target.value)}>
+              <select value={exerciseId} onChange={(e) => handleExerciseSelection(e.target.value)}>
                 <option value="" disabled>
                   Selecione um exercício
                 </option>
@@ -573,6 +691,97 @@ export default function TrainingConfigPage() {
 
 const style = new CSSStyleSheet();
 style.replaceSync(`
+.training-config__bulkImport {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 18px;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 16px;
+  background: rgba(239, 246, 255, 0.72);
+}
+.training-config__bulkImport h3,
+.training-config__bulkImport p {
+  margin: 0;
+}
+.training-config__bulkImport p {
+  color: #475569;
+}
+.training-config__bulkImport textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 150px;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  border-radius: 12px;
+  background: white;
+  color: #0f172a;
+  font: inherit;
+}
+.training-config__importPreview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 340px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+}
+.training-config__importSummary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.training-config__importSummary span {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+.training-config__importPreview ul {
+  display: grid;
+  gap: 6px;
+}
+.training-config__importPreview li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 10px;
+  background: white;
+}
+.training-config__importPreview li > div {
+  min-width: 0;
+}
+.training-config__importPreview li span {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+.training-config__importPreview li > div span {
+  display: block;
+}
+.training-config__importDuplicate {
+  opacity: 0.55;
+}
+.training-config__importEmpty {
+  color: #b45309;
+}
+.training-config__bulkActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.training-config__bulkClear {
+  border-color: rgba(148, 163, 184, 0.45);
+  background: transparent;
+  color: #475569;
+}
+.training-config__importSuccess {
+  color: #15803d !important;
+  font-weight: 700;
+}
 .training-config__tabsBar {
   position: sticky;
   top: 0;

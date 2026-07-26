@@ -29,11 +29,12 @@ A página inicial reúne quatro cartões de progresso. Clique em um cartão para
 
 Use o seletor **Tema** no cabeçalho para escolher:
 
+- **Sistema:** acompanha automaticamente o tema claro ou escuro do dispositivo.
 - **Claro:** visual neutro e luminoso.
 - **Escuro:** superfícies escuras e contraste confortável em ambientes com pouca luz.
 - **Colorido:** fundo e destaques em tons de roxo, rosa e azul.
 
-A preferência fica salva no navegador e é reaplicada nas próximas visitas.
+**Sistema** é a opção padrão e reage a mudanças no dispositivo. Uma escolha manual fica salva no navegador e é reaplicada nas próximas visitas.
 
 Os percentuais representam:
 
@@ -169,6 +170,28 @@ Cadastre os exercícios que poderão ser usados nas divisões. Um exercício pod
 Também é possível cadastrar modalidades de cardio.
 
 Alterações feitas em um exercício da biblioteca são propagadas para os treinos que utilizam aquele cadastro.
+
+#### Importar exercícios por texto
+
+Para cadastrar vários exercícios de uma vez:
+
+1. Cole a lista no campo **Importar exercícios por texto**.
+2. Confira a prévia dos itens reconhecidos.
+3. Verifique o grupo muscular e a prescrição identificada.
+4. Clique em **Adicionar à biblioteca**.
+
+O importador aceita listas copiadas de documentos, mensagens ou planilhas e reconhece formatos como:
+
+```text
+Supino reto com halteres    4×6–10
+Remada baixa               3x8-12
+Prancha                    3x30-60 segundos
+Afundo búlgaro             3×8–12 por perna
+```
+
+Também são aceitos separadores como linhas, tabulações e ponto e vírgula. Exercícios repetidos não são adicionados novamente.
+
+O grupo muscular é sugerido automaticamente pelo nome. Séries e repetições reconhecidas ficam salvas como padrão e são preenchidas ao selecionar o exercício na montagem do treino. Revise exercícios classificados como **Não informado** e edite o grupo quando necessário.
 
 ### Aba Montar treino
 

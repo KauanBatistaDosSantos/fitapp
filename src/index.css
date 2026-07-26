@@ -118,7 +118,7 @@ button:hover:not(:disabled) {
   transform: translateY(-1px);
 }
 
-input, select {
+input, select, textarea {
   font-family: inherit;
   font-size: 1rem;
   padding: 0.55em 0.75em;
@@ -191,7 +191,10 @@ html[data-theme="dark"] .app-shell :is(
   .diet-day__panel,
   .diet-day__summary,
   .diet-item,
-  .empty-state
+  .empty-state,
+  .training-config__bulkImport,
+  .training-config__importPreview,
+  .training-config__importPreview li
 ) {
   background: var(--surface-soft) !important;
   color: var(--text) !important;
