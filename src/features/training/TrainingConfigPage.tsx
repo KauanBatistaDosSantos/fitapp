@@ -14,6 +14,7 @@ import {
   type SharedTrainingPlan,
 } from "./training.share";
 import { normalizeMediaUrls, parseMediaUrls, resolveExerciseMedia } from "./training.media";
+import { TrainingMediaGallery } from "./TrainingMediaGallery";
 
 export default function TrainingConfigPage() {
   const {
@@ -530,20 +531,11 @@ export default function TrainingConfigPage() {
                   </span>
                 )}
                 {resolveExerciseMedia(undefined, item).length > 0 && (
-                  <div className="training-config__catalogMedia">
-                    {resolveExerciseMedia(undefined, item).map((url, index) => (
-                      <a
-                        key={url}
-                        href={url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="training-config__catalogThumbnail"
-                        aria-label={`Abrir referência ${index + 1} de ${item.name}`}
-                      >
-                        <img src={url} alt="" loading="lazy" referrerPolicy="no-referrer" />
-                      </a>
-                    ))}
-                  </div>
+                  <TrainingMediaGallery
+                    exerciseName={item.name}
+                    urls={resolveExerciseMedia(undefined, item)}
+                    variant="catalog"
+                  />
                 )}
               </div>
               <div className="training-config__catalogActions">
@@ -1189,27 +1181,6 @@ style.replaceSync(`
   display: block;
   font-size: 0.85rem;
   color: #475569;
-}
-.training-config__catalogMedia {
-  display: flex !important;
-  flex-direction: row !important;
-  gap: 7px !important;
-  overflow-x: auto;
-  padding: 2px 0;
-}
-.training-config__catalogThumbnail {
-  width: 58px;
-  height: 58px;
-  flex: 0 0 58px;
-  overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 9px;
-  background: rgba(148, 163, 184, 0.12);
-}
-.training-config__catalogThumbnail img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 .training-config__catalogActions {
   display: flex;

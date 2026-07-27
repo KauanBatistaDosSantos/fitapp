@@ -241,8 +241,9 @@ Na tela **Treino semanal**:
 2. Marque os blocos de cardio realizados.
 3. Inicie a musculação e marque cada série concluída.
 4. Use o temporizador de descanso exibido entre as séries.
-5. Clique em uma imagem ou GIF para abrir a referência completa.
-6. Abra os detalhes do exercício para consultar toda a galeria, registrar carga ou adicionar observações.
+5. Clique em uma imagem ou GIF para ampliar a referência sem sair do aplicativo.
+6. No visualizador, use os botões de anterior e próxima, as miniaturas ou as setas do teclado para navegar.
+7. Abra os detalhes do exercício para consultar toda a galeria, registrar carga ou adicionar observações.
 
 Se um treino tiver apenas musculação, ele será apresentado somente como **Musculação**. Os termos “manhã/tarde” e “Parte 1/Parte 2” aparecem somente quando cardio e musculação coexistem.
 
