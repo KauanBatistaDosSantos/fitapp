@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { ExerciseCatalogItem, TrainingPreferences } from "./training.store";
 import type { TrainingTemplate } from "./training.schema";
 import { getActiveSplits } from "./training.service";
+import { resolveExerciseMedia } from "./training.media";
 
 const SharedExerciseSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -10,6 +11,7 @@ const SharedExerciseSchema = z.object({
   restSec: z.number().int().min(0).max(3600),
   notes: z.string().max(1000).optional(),
   gifUrl: z.string().max(2000).optional(),
+  mediaUrls: z.array(z.string().max(2000)).max(20).optional(),
   muscles: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
   secondaryMuscles: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
   substitutions: z.array(z.string().trim().min(1).max(160)).max(30).optional(),
@@ -54,19 +56,23 @@ export function createSharedTrainingPlan(
     workouts: getActiveSplits(preferences.trainingDays).map((split) => ({
       label: preferences.splitLabels[split]?.trim() || `Treino ${split}`,
       cardio: template[split].am.map(({ kind, minutes }) => ({ kind, minutes })),
-      exercises: template[split].pm.map((exercise) => ({
-        name: exercise.name,
-        sets: exercise.sets,
-        reps: exercise.reps,
-        restSec: exercise.restSec,
-        notes: exercise.notes,
-        gifUrl: exercise.gifUrl,
-        muscles: exercise.muscles,
-        secondaryMuscles: exercise.secondaryMuscles,
-        substitutions: exercise.substitutions
-          ?.map((id) => catalogById.get(id)?.name)
-          .filter((name): name is string => Boolean(name)),
-      })),
+      exercises: template[split].pm.map((exercise) => {
+        const catalogItem = exercise.catalogId ? catalogById.get(exercise.catalogId) : undefined;
+        return {
+          name: exercise.name,
+          sets: exercise.sets,
+          reps: exercise.reps,
+          restSec: exercise.restSec,
+          notes: exercise.notes,
+          gifUrl: catalogItem?.gifUrl ?? exercise.gifUrl,
+          mediaUrls: resolveExerciseMedia(exercise, catalogItem),
+          muscles: catalogItem?.muscles ?? exercise.muscles,
+          secondaryMuscles: catalogItem?.secondaryMuscles ?? exercise.secondaryMuscles,
+          substitutions: exercise.substitutions
+            ?.map((id) => catalogById.get(id)?.name)
+            .filter((name): name is string => Boolean(name)),
+        };
+      }),
     })),
   };
 }

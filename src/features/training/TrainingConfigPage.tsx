@@ -13,6 +13,7 @@ import {
   sharedPlanFilename,
   type SharedTrainingPlan,
 } from "./training.share";
+import { normalizeMediaUrls, parseMediaUrls, resolveExerciseMedia } from "./training.media";
 
 export default function TrainingConfigPage() {
   const {
@@ -40,7 +41,7 @@ export default function TrainingConfigPage() {
   const [newExercise, setNewExercise] = useState({
     name: "",
     muscle: "",
-    gifUrl: "",
+    mediaUrls: "",
     secondary: "",
     substitutions: [] as string[],
   });
@@ -61,7 +62,7 @@ export default function TrainingConfigPage() {
   const [shareMessage, setShareMessage] = useState("");
   const [pendingSharedPlan, setPendingSharedPlan] = useState<SharedTrainingPlan | null>(null);
   const [shareError, setShareError] = useState("");
-  const [editingForm, setEditingForm] = useState({ name: "", muscle: "", gifUrl: "", secondary: "", substitutions: [] as string[] });
+  const [editingForm, setEditingForm] = useState({ name: "", muscle: "", mediaUrls: "", secondary: "", substitutions: [] as string[] });
   const activeSplits = useMemo(
     () => getActiveSplits(preferences.trainingDays),
     [preferences.trainingDays],
@@ -74,9 +75,24 @@ export default function TrainingConfigPage() {
     () => new Set(catalog.map((item) => normalizeExerciseName(item.name))),
     [catalog],
   );
+  const catalogByName = useMemo(
+    () => new Map(catalog.map((item) => [normalizeExerciseName(item.name), item])),
+    [catalog],
+  );
   const newParsedExercises = useMemo(
     () => parsedExercises.filter((exercise) => !catalogNames.has(normalizeExerciseName(exercise.name))),
     [catalogNames, parsedExercises],
+  );
+  const importableParsedExercises = useMemo(
+    () =>
+      parsedExercises.filter((exercise) => {
+        const existing = catalogByName.get(normalizeExerciseName(exercise.name));
+        if (!existing) return true;
+        return normalizeMediaUrls(
+          exercise.mediaUrls,
+        ).some((url) => !resolveExerciseMedia(undefined, existing).includes(url));
+      }),
+    [catalogByName, parsedExercises],
   );
 
   const handleSplitLabelChange = (split: Split, value: string) => {
@@ -148,30 +164,45 @@ export default function TrainingConfigPage() {
     addCatalogExercise({
       name: newExercise.name.trim(),
       muscle: newExercise.muscle.trim(),
-      gifUrl: newExercise.gifUrl.trim() || undefined,
+      mediaUrls: parseMediaUrls(newExercise.mediaUrls),
       secondaryMuscles: secondary,
       substitutions: newExercise.substitutions,
       muscles: [newExercise.muscle.trim(), ...secondary],
     });
-    setNewExercise({ name: "", muscle: "", gifUrl: "", secondary: "", substitutions: [] });
+    setNewExercise({ name: "", muscle: "", mediaUrls: "", secondary: "", substitutions: [] });
   };
 
   const handleBulkImport = () => {
-    if (newParsedExercises.length === 0) return;
-    newParsedExercises.forEach((exercise) => {
-      addCatalogExercise({
-        name: exercise.name,
-        muscle: exercise.muscle,
-        muscles: [exercise.muscle],
-        defaultSets: exercise.sets,
-        defaultReps: exercise.reps,
-      });
+    if (importableParsedExercises.length === 0) return;
+    let added = 0;
+    let updated = 0;
+    importableParsedExercises.forEach((exercise) => {
+      const existing = catalogByName.get(normalizeExerciseName(exercise.name));
+      if (existing) {
+        updateCatalogExercise(existing.id, {
+          mediaUrls: normalizeMediaUrls(
+            resolveExerciseMedia(undefined, existing),
+            exercise.mediaUrls,
+          ),
+        });
+        updated += 1;
+      } else {
+        addCatalogExercise({
+          name: exercise.name,
+          muscle: exercise.muscle,
+          muscles: [exercise.muscle],
+          defaultSets: exercise.sets,
+          defaultReps: exercise.reps,
+          mediaUrls: exercise.mediaUrls,
+        });
+        added += 1;
+      }
     });
-    setBulkImportMessage(
-      `${newParsedExercises.length} ${
-        newParsedExercises.length === 1 ? "exercício adicionado" : "exercícios adicionados"
-      } à biblioteca.`,
-    );
+    const result = [
+      added ? `${added} ${added === 1 ? "exercício adicionado" : "exercícios adicionados"}` : "",
+      updated ? `${updated} ${updated === 1 ? "exercício atualizado" : "exercícios atualizados"} com novas imagens` : "",
+    ].filter(Boolean);
+    setBulkImportMessage(`${result.join(" e ")}.`);
     setBulkExerciseText("");
   };
 
@@ -212,7 +243,7 @@ export default function TrainingConfigPage() {
     setEditingForm({
       name: item.name,
       muscle: item.muscle ?? "",
-      gifUrl: item.gifUrl ?? "",
+      mediaUrls: resolveExerciseMedia(undefined, item).join("\n"),
       secondary: (item.secondaryMuscles ?? []).join(", "),
       substitutions: item.substitutions ?? [],
     });
@@ -228,7 +259,7 @@ export default function TrainingConfigPage() {
     updateCatalogExercise(editingId, {
       name: editingForm.name.trim() || "Exercício",
       muscle: editingForm.muscle.trim(),
-      gifUrl: editingForm.gifUrl.trim() || undefined,
+      mediaUrls: parseMediaUrls(editingForm.mediaUrls),
       secondaryMuscles: secondary,
       substitutions: editingForm.substitutions,
       muscles: [editingForm.muscle.trim(), ...secondary],
@@ -345,7 +376,7 @@ export default function TrainingConfigPage() {
           <div>
             <h3>Importar exercícios por texto</h3>
             <p>
-              Cole uma lista com nomes, séries e repetições. O app reconhece formatos como
+              Cole uma lista com nomes, séries, repetições e links. O app reconhece formatos como
               <strong> 4×6–10</strong>, <strong>3x12</strong> e <strong>3x30-60 segundos</strong>.
             </p>
           </div>
@@ -356,7 +387,7 @@ export default function TrainingConfigPage() {
               setBulkImportMessage("");
             }}
             rows={8}
-            placeholder={"Supino reto com halteres\t4×6–10\nRemada baixa\t3×8–12\nPrancha\t3x30-60 segundos"}
+            placeholder={"Supino reto com halteres\t4×6–10\thttps://exemplo.com/supino\nRemada baixa\t3×8–12"}
           />
 
           {bulkExerciseText.trim() && (
@@ -365,20 +396,32 @@ export default function TrainingConfigPage() {
                 <strong>{parsedExercises.length} exercício(s) reconhecido(s)</strong>
                 <span>
                   {newParsedExercises.length} novo(s)
-                  {parsedExercises.length > newParsedExercises.length
-                    ? ` · ${parsedExercises.length - newParsedExercises.length} duplicado(s) ignorado(s)`
+                  {importableParsedExercises.length > newParsedExercises.length
+                    ? ` · ${importableParsedExercises.length - newParsedExercises.length} com novas imagens`
+                    : ""}
+                  {parsedExercises.length > importableParsedExercises.length
+                    ? ` · ${parsedExercises.length - importableParsedExercises.length} sem alterações`
                     : ""}
                 </span>
               </div>
               {parsedExercises.length > 0 ? (
                 <ul>
                   {parsedExercises.map((exercise) => {
-                    const duplicate = catalogNames.has(normalizeExerciseName(exercise.name));
+                    const existing = catalogByName.get(normalizeExerciseName(exercise.name));
+                    const hasNewMedia = exercise.mediaUrls?.some(
+                      (url) => !resolveExerciseMedia(undefined, existing).includes(url),
+                    );
+                    const duplicate = Boolean(existing && !hasNewMedia);
                     return (
                       <li key={normalizeExerciseName(exercise.name)} className={duplicate ? "training-config__importDuplicate" : ""}>
                         <div>
                           <strong>{exercise.name}</strong>
                           <span>{exercise.muscle}</span>
+                          {exercise.mediaUrls?.length ? (
+                            <span>
+                              {exercise.mediaUrls.length} {exercise.mediaUrls.length === 1 ? "imagem incluída" : "imagens incluídas"}
+                            </span>
+                          ) : null}
                         </div>
                         <span>
                           {exercise.sets && exercise.reps
@@ -398,8 +441,8 @@ export default function TrainingConfigPage() {
           )}
 
           <div className="training-config__bulkActions">
-            <button type="button" onClick={handleBulkImport} disabled={newParsedExercises.length === 0}>
-              Adicionar {newParsedExercises.length || ""} à biblioteca
+            <button type="button" onClick={handleBulkImport} disabled={importableParsedExercises.length === 0}>
+              Importar {importableParsedExercises.length || ""} para a biblioteca
             </button>
             {bulkExerciseText && (
               <button type="button" className="training-config__bulkClear" onClick={() => setBulkExerciseText("")}>
@@ -439,11 +482,12 @@ export default function TrainingConfigPage() {
             />
           </label>
           <label>
-            GIF de referência
-            <input
-              value={newExercise.gifUrl}
-              onChange={(e) => setNewExercise((prev) => ({ ...prev, gifUrl: e.target.value }))}
-              placeholder="https://..."
+            Imagens e GIFs de referência
+            <textarea
+              value={newExercise.mediaUrls}
+              onChange={(e) => setNewExercise((prev) => ({ ...prev, mediaUrls: e.target.value }))}
+              placeholder={"Cole um link por linha\nhttps://...\nhttps://..."}
+              rows={3}
             />
           </label>
           <label>
@@ -485,10 +529,21 @@ export default function TrainingConfigPage() {
                     Padrão: {item.defaultSets} × {item.defaultReps}
                   </span>
                 )}
-                {item.gifUrl && (
-                  <a href={item.gifUrl} target="_blank" rel="noreferrer" className="training-config__catalogLink">
-                    Ver demonstração
-                  </a>
+                {resolveExerciseMedia(undefined, item).length > 0 && (
+                  <div className="training-config__catalogMedia">
+                    {resolveExerciseMedia(undefined, item).map((url, index) => (
+                      <a
+                        key={url}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="training-config__catalogThumbnail"
+                        aria-label={`Abrir referência ${index + 1} de ${item.name}`}
+                      >
+                        <img src={url} alt="" loading="lazy" referrerPolicy="no-referrer" />
+                      </a>
+                    ))}
+                  </div>
                 )}
               </div>
               <div className="training-config__catalogActions">
@@ -527,11 +582,12 @@ export default function TrainingConfigPage() {
                     />
                   </label>
                   <label>
-                    GIF de referência
-                    <input
-                      value={editingForm.gifUrl}
-                      onChange={(e) => setEditingForm((prev) => ({ ...prev, gifUrl: e.target.value }))}
-                      placeholder="https://..."
+                    Imagens e GIFs de referência
+                    <textarea
+                      value={editingForm.mediaUrls}
+                      onChange={(e) => setEditingForm((prev) => ({ ...prev, mediaUrls: e.target.value }))}
+                      placeholder={"Um link por linha\nhttps://..."}
+                      rows={4}
                     />
                   </label>
                   <label>
@@ -783,7 +839,7 @@ export default function TrainingConfigPage() {
                 <h3>Enviar meu treino</h3>
                 <p>
                   O arquivo inclui os {preferences.trainingDays} treinos ativos, exercícios,
-                  séries, repetições, descanso e cardio.
+                  séries, repetições, descanso, cardio e links de referência.
                 </p>
               </div>
               <label>
@@ -831,7 +887,17 @@ export default function TrainingConfigPage() {
                     {pendingSharedPlan.workouts.reduce(
                       (total, workout) => total + workout.exercises.length,
                       0,
-                    )} exercícios
+                    )} exercícios ·{" "}
+                    {pendingSharedPlan.workouts.reduce(
+                      (total, workout) =>
+                        total + workout.exercises.reduce(
+                          (exerciseTotal, exercise) =>
+                            exerciseTotal +
+                            normalizeMediaUrls(exercise.mediaUrls, exercise.gifUrl).length,
+                          0,
+                        ),
+                      0,
+                    )} links
                   </span>
                   <ul>
                     {pendingSharedPlan.workouts.map((workout, index) => (
@@ -1124,9 +1190,26 @@ style.replaceSync(`
   font-size: 0.85rem;
   color: #475569;
 }
-.training-config__catalogLink {
-  font-size: 0.8rem;
-  color: #1d4ed8;
+.training-config__catalogMedia {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 7px !important;
+  overflow-x: auto;
+  padding: 2px 0;
+}
+.training-config__catalogThumbnail {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 9px;
+  background: rgba(148, 163, 184, 0.12);
+}
+.training-config__catalogThumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .training-config__catalogActions {
   display: flex;

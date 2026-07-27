@@ -12,12 +12,14 @@ import { getActiveSplits, splitOrder } from "./training.service";
 import { inferMuscleGroup, repairImportedExercise } from "./training.import";
 import { isoDate } from "@/lib/date";
 import type { SharedTrainingPlan } from "./training.share";
+import { normalizeMediaUrls } from "./training.media";
 
 export type ExerciseCatalogItem = {
   id: string;
   name: string;
   muscle: string;
   gifUrl?: string;
+  mediaUrls?: string[];
   muscles?: string[];
   secondaryMuscles?: string[];
   substitutions?: string[];
@@ -54,6 +56,7 @@ type TrainingState = {
     name: string;
     muscle: string;
     gifUrl?: string;
+    mediaUrls?: string[];
     muscles?: string[];
     secondaryMuscles?: string[];
     substitutions?: string[];
@@ -108,7 +111,15 @@ const catalogFallback = () => {
   let changed = false;
   const catalog = loaded.map((item) => {
     const repaired = repairImportedExercise(item.name, item.defaultReps);
-    if (repaired.name === item.name && repaired.reps === item.defaultReps) return item;
+    const mediaUrls = normalizeMediaUrls(item.mediaUrls, item.gifUrl);
+    const mediaChanged =
+      mediaUrls.length !== (item.mediaUrls?.length ?? 0) ||
+      mediaUrls.some((url, index) => url !== item.mediaUrls?.[index]);
+    if (
+      repaired.name === item.name &&
+      repaired.reps === item.defaultReps &&
+      !mediaChanged
+    ) return item;
     changed = true;
     const muscle = item.muscle === "Não informado" ? inferMuscleGroup(repaired.name) : item.muscle;
     return {
@@ -120,6 +131,7 @@ const catalogFallback = () => {
           ? [muscle, ...(item.secondaryMuscles ?? [])]
           : item.muscles,
       defaultReps: repaired.reps,
+      mediaUrls,
     };
   });
   if (changed) save("tr:catalog", catalog);
@@ -139,13 +151,22 @@ const templateFallback = () => {
   splitOrder.forEach((split) => {
     template[split].pm = template[split].pm.map((exercise) => {
       const repaired = repairImportedExercise(exercise.name, exercise.reps);
-      if (repaired.name === exercise.name && repaired.reps === exercise.reps) return exercise;
+      const mediaUrls = normalizeMediaUrls(exercise.mediaUrls, exercise.gifUrl);
+      const mediaChanged =
+        mediaUrls.length !== (exercise.mediaUrls?.length ?? 0) ||
+        mediaUrls.some((url, index) => url !== exercise.mediaUrls?.[index]);
+      if (
+        repaired.name === exercise.name &&
+        repaired.reps === exercise.reps &&
+        !mediaChanged
+      ) return exercise;
       changed = true;
       const inferredMuscle = inferMuscleGroup(repaired.name);
       return {
         ...exercise,
         name: repaired.name,
         reps: repaired.reps ?? exercise.reps,
+        mediaUrls,
         muscles:
           !exercise.muscles || exercise.muscles.includes("Não informado")
             ? [inferredMuscle]
@@ -202,6 +223,7 @@ export const useTraining = create<TrainingState>((set) => ({
     name,
     muscle,
     gifUrl,
+    mediaUrls,
     muscles,
     secondaryMuscles,
     substitutions,
@@ -213,7 +235,8 @@ export const useTraining = create<TrainingState>((set) => ({
         id: uid(),
         name,
         muscle,
-        gifUrl,
+        gifUrl: mediaUrls?.[0] ?? gifUrl,
+        mediaUrls: normalizeMediaUrls(mediaUrls, gifUrl),
         muscles: (muscles && muscles.length > 0 ? muscles : [muscle]).filter(Boolean),
         secondaryMuscles: secondaryMuscles?.filter(Boolean),
         substitutions: substitutions?.filter(Boolean),
@@ -243,6 +266,14 @@ export const useTraining = create<TrainingState>((set) => ({
         const updatedItem: ExerciseCatalogItem = {
           ...item,
           ...patch,
+          gifUrl:
+            patch.mediaUrls != null
+              ? patch.mediaUrls[0]
+              : patch.gifUrl ?? item.gifUrl,
+          mediaUrls:
+            patch.mediaUrls != null || patch.gifUrl != null
+              ? normalizeMediaUrls(patch.mediaUrls, patch.gifUrl)
+              : item.mediaUrls,
           muscle,
           muscles: musclesInput.length > 0 ? musclesInput : undefined,
           secondaryMuscles,
@@ -268,7 +299,14 @@ export const useTraining = create<TrainingState>((set) => ({
               name: patch.name ?? exercise.name,
               muscles: resolvedMuscles,
               secondaryMuscles: updatedCatalogItem?.secondaryMuscles ?? exercise.secondaryMuscles,
-              gifUrl: patch.gifUrl ?? exercise.gifUrl,
+              gifUrl:
+                patch.mediaUrls != null
+                  ? patch.mediaUrls[0]
+                  : patch.gifUrl ?? exercise.gifUrl,
+              mediaUrls:
+                patch.mediaUrls != null || patch.gifUrl != null
+                  ? normalizeMediaUrls(patch.mediaUrls, patch.gifUrl)
+                  : exercise.mediaUrls,
               substitutions: updatedCatalogItem?.substitutions ?? exercise.substitutions,
             };
           });
@@ -352,6 +390,7 @@ export const useTraining = create<TrainingState>((set) => ({
         catalogId: catalogItem?.id,
         muscles: catalogItem?.muscles ?? [catalogItem?.muscle ?? ""].filter(Boolean),
         gifUrl: catalogItem?.gifUrl,
+        mediaUrls: normalizeMediaUrls(catalogItem?.mediaUrls, catalogItem?.gifUrl),
         substitutions: catalogItem?.substitutions,
       });
       save("tr:template", template);
@@ -667,6 +706,7 @@ export const useTraining = create<TrainingState>((set) => ({
             muscles: exercise.muscles?.length ? exercise.muscles : [muscle],
             secondaryMuscles: exercise.secondaryMuscles,
             gifUrl: exercise.gifUrl,
+            mediaUrls: normalizeMediaUrls(exercise.mediaUrls, exercise.gifUrl),
             defaultSets: exercise.sets,
             defaultReps: exercise.reps,
           };
@@ -678,7 +718,11 @@ export const useTraining = create<TrainingState>((set) => ({
       for (const workout of plan.workouts) {
         for (const exercise of workout.exercises) {
           const item = catalogByName.get(normalizeCatalogName(exercise.name));
-          if (!item || !exercise.substitutions?.length) continue;
+          if (!item) continue;
+          const receivedMedia = normalizeMediaUrls(exercise.mediaUrls, exercise.gifUrl);
+          item.mediaUrls = normalizeMediaUrls(item.mediaUrls, item.gifUrl, receivedMedia);
+          if (!item.gifUrl && receivedMedia[0]) item.gifUrl = receivedMedia[0];
+          if (!exercise.substitutions?.length) continue;
           const substitutionIds = exercise.substitutions
             .map((name) => catalogByName.get(normalizeCatalogName(name))?.id)
             .filter((id): id is string => Boolean(id));
@@ -704,7 +748,13 @@ export const useTraining = create<TrainingState>((set) => ({
               reps: exercise.reps,
               restSec: exercise.restSec,
               notes: exercise.notes,
-              gifUrl: exercise.gifUrl,
+              gifUrl: catalogItem?.gifUrl ?? exercise.gifUrl,
+              mediaUrls: normalizeMediaUrls(
+                catalogItem?.mediaUrls,
+                catalogItem?.gifUrl,
+                exercise.mediaUrls,
+                exercise.gifUrl,
+              ),
               muscles: exercise.muscles,
               secondaryMuscles: exercise.secondaryMuscles,
               substitutions: exercise.substitutions

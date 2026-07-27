@@ -165,7 +165,7 @@ Cadastre os exercícios que poderão ser usados nas divisões. Um exercício pod
 - Nome
 - Grupo muscular principal
 - Músculos secundários
-- URL de GIF ou demonstração
+- Uma ou mais imagens, GIFs, vídeos ou links de demonstração
 - Sugestões de substituição
 
 Também é possível cadastrar modalidades de cardio.
@@ -184,13 +184,15 @@ Para cadastrar vários exercícios de uma vez:
 O importador aceita listas copiadas de documentos, mensagens ou planilhas e reconhece formatos como:
 
 ```text
-Supino reto com halteres    4×6–10
+Supino reto com halteres ou máquina    4×6–10    https://exemplo.com/halteres.gif    https://exemplo.com/maquina.gif
 Remada baixa               3x8-12
 Prancha                    3x30-60 segundos
 Afundo búlgaro             3×8–12 por perna
 ```
 
-Também são aceitos separadores como linhas, tabulações e ponto e vírgula. Exercícios repetidos não são adicionados novamente.
+Também são aceitos separadores como linhas, tabulações e ponto e vírgula. É possível informar vários links para o mesmo exercício, antes ou depois das séries e repetições.
+
+Se um exercício já existir na biblioteca, novos links encontrados são acrescentados à galeria sem duplicar o exercício. Links repetidos são ignorados.
 
 O grupo muscular é sugerido automaticamente pelo nome. Séries e repetições reconhecidas ficam salvas como padrão e são preenchidas ao selecionar o exercício na montagem do treino. Revise exercícios classificados como **Não informado** e edite o grupo quando necessário.
 
@@ -221,7 +223,7 @@ Para enviar:
 2. Use **Enviar treino** para abrir o compartilhamento do celular ou dispositivo.
 3. Se o compartilhamento direto não estiver disponível, use **Baixar arquivo** e envie o arquivo `.fitapp.json` como anexo.
 
-O arquivo inclui somente os treinos ativos, seus nomes, exercícios, séries, repetições, descanso e cardio. Cargas utilizadas, histórico e progresso semanal não são compartilhados.
+O arquivo inclui somente os treinos ativos, seus nomes, exercícios, séries, repetições, descanso, cardio e todas as imagens e referências cadastradas na biblioteca. Cargas utilizadas, histórico e progresso semanal não são compartilhados.
 
 Para receber:
 
@@ -239,7 +241,8 @@ Na tela **Treino semanal**:
 2. Marque os blocos de cardio realizados.
 3. Inicie a musculação e marque cada série concluída.
 4. Use o temporizador de descanso exibido entre as séries.
-5. Abra os detalhes do exercício para consultar a demonstração, registrar carga ou adicionar observações.
+5. Clique em uma imagem ou GIF para abrir a referência completa.
+6. Abra os detalhes do exercício para consultar toda a galeria, registrar carga ou adicionar observações.
 
 Se um treino tiver apenas musculação, ele será apresentado somente como **Musculação**. Os termos “manhã/tarde” e “Parte 1/Parte 2” aparecem somente quando cardio e musculação coexistem.
 

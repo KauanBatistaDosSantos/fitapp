@@ -1,8 +1,11 @@
+import { normalizeMediaUrls } from "./training.media";
+
 export type ParsedExercise = {
   name: string;
   muscle: string;
   sets?: number;
   reps?: string;
+  mediaUrls?: string[];
 };
 
 const prescriptionPattern =
@@ -15,7 +18,14 @@ export function parseExerciseText(text: string): ParsedExercise[] {
 
   for (const match of source.matchAll(prescriptionPattern)) {
     const matchIndex = match.index ?? cursor;
-    const name = cleanExerciseName(source.slice(cursor, matchIndex));
+    const chunk = extractExerciseChunk(source.slice(cursor, matchIndex));
+    if (chunk.previousUrls.length > 0 && parsed.length > 0) {
+      parsed[parsed.length - 1].mediaUrls = normalizeMediaUrls(
+        parsed[parsed.length - 1].mediaUrls,
+        chunk.previousUrls,
+      );
+    }
+    const name = chunk.name;
     if (name) {
       const range = (match[2] ?? match[4] ?? "").replace(/\s*[-–—]\s*/g, "-");
       const unit = normalizeUnit(match[3]);
@@ -25,28 +35,37 @@ export function parseExerciseText(text: string): ParsedExercise[] {
         muscle: inferMuscleGroup(name),
         sets: Number(match[1]),
         reps: `${range}${unit ? ` ${unit}` : ""}${qualifier}`.trim(),
+        mediaUrls: chunk.currentUrls.length ? chunk.currentUrls : undefined,
       });
     }
     cursor = matchIndex + match[0].length;
   }
 
-  const remainder = cleanExerciseName(source.slice(cursor));
-  if (remainder) {
-    parsed.push(
-      ...splitUnprescribedExercises(remainder).map((name) => ({
-        name,
-        muscle: inferMuscleGroup(name),
-      })),
+  if (cursor === 0) {
+    return uniqueExercises(parseUnprescribedExerciseText(source));
+  }
+
+  const remainderChunk = extractExerciseChunk(source.slice(cursor));
+  if (remainderChunk.previousUrls.length > 0 && parsed.length > 0) {
+    parsed[parsed.length - 1].mediaUrls = normalizeMediaUrls(
+      parsed[parsed.length - 1].mediaUrls,
+      remainderChunk.previousUrls,
     );
+  }
+  const remainder = remainderChunk.name;
+  if (remainder) {
+    const names = splitUnprescribedExercises(remainder);
+    parsed.push(...names.map((name, index) => ({
+      name,
+      muscle: inferMuscleGroup(name),
+      mediaUrls: index === 0 && remainderChunk.currentUrls.length
+        ? remainderChunk.currentUrls
+        : undefined,
+    })));
   }
 
   if (parsed.length === 0) {
-    return uniqueExercises(
-      splitUnprescribedExercises(source).map((name) => ({
-        name,
-        muscle: inferMuscleGroup(name),
-      })),
-    );
+    return uniqueExercises(parseUnprescribedExerciseText(source));
   }
 
   return uniqueExercises(parsed);
@@ -82,6 +101,38 @@ function cleanExerciseName(value: string) {
     .trim();
 }
 
+function extractExerciseChunk(value: string) {
+  const matches = Array.from(value.matchAll(/https?:\/\/[^\s<>"']+/giu));
+  if (matches.length === 0) {
+    return { name: cleanExerciseName(value), currentUrls: [], previousUrls: [] };
+  }
+
+  const currentUrls: string[] = [];
+  const previousUrls: string[] = [];
+  for (const match of matches) {
+    const beforeUrl = value.slice(0, match.index);
+    const hasNameBeforeUrl = Boolean(cleanExerciseName(removeUrls(beforeUrl)));
+    const url = cleanUrl(match[0]);
+    if (!url) continue;
+    if (hasNameBeforeUrl) currentUrls.push(url);
+    else previousUrls.push(url);
+  }
+
+  return {
+    name: cleanExerciseName(removeUrls(value)),
+    currentUrls: normalizeMediaUrls(currentUrls),
+    previousUrls: normalizeMediaUrls(previousUrls),
+  };
+}
+
+function removeUrls(value: string) {
+  return value.replace(/https?:\/\/[^\s<>"']+/giu, " ");
+}
+
+function cleanUrl(value: string) {
+  return value.replace(/[.,;:!?)}\]]+$/g, "").trim() || undefined;
+}
+
 function splitUnprescribedExercises(value: string) {
   return value
     .split(/[\n\t;|]+/)
@@ -89,14 +140,45 @@ function splitUnprescribedExercises(value: string) {
     .filter(Boolean);
 }
 
+function parseUnprescribedExerciseText(value: string): ParsedExercise[] {
+  const parsed: ParsedExercise[] = [];
+  for (const segment of value.split(/[\n;|]+/)) {
+    const chunk = extractExerciseChunk(segment);
+    const names = splitUnprescribedExercises(chunk.name);
+    const urls = normalizeMediaUrls(chunk.currentUrls, chunk.previousUrls);
+    if (names.length === 0) {
+      if (urls.length > 0 && parsed.length > 0) {
+        parsed[parsed.length - 1].mediaUrls = normalizeMediaUrls(
+          parsed[parsed.length - 1].mediaUrls,
+          urls,
+        );
+      }
+      continue;
+    }
+    parsed.push(
+      ...names.map((name, index) => ({
+        name,
+        muscle: inferMuscleGroup(name),
+        mediaUrls: index === 0 && urls.length ? urls : undefined,
+      })),
+    );
+  }
+  return parsed;
+}
+
 function uniqueExercises(exercises: ParsedExercise[]) {
-  const seen = new Set<string>();
-  return exercises.filter((exercise) => {
+  const unique = new Map<string, ParsedExercise>();
+  exercises.forEach((exercise) => {
     const key = normalizeExerciseName(exercise.name);
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
+    if (!key) return;
+    const existing = unique.get(key);
+    if (!existing) {
+      unique.set(key, exercise);
+      return;
+    }
+    existing.mediaUrls = normalizeMediaUrls(existing.mediaUrls, exercise.mediaUrls);
   });
+  return Array.from(unique.values());
 }
 
 function normalizeUnit(unit?: string) {

@@ -3,6 +3,7 @@ import type { Split, TrainingTemplate, TrainingLog, Exercise } from "./training.
 import { sessionProgress, isToday } from "./training.service";
 import type { ExerciseCatalogItem, TrainingPreferences } from "./training.store";
 import { defaultSplitLabels } from "./training.store";
+import { resolveExerciseMedia } from "./training.media";
 
 type TrainingSplitProps = {
   split: Split;
@@ -273,7 +274,7 @@ function ExerciseItem({
 }: ExerciseItemProps) {
   const detail = formatExerciseDetail(exercise, displayFormat);
   const muscles = resolveMuscles(exercise, catalogInfo);
-  const gif = exercise.gifUrl ?? catalogInfo?.gifUrl;
+  const mediaUrls = resolveExerciseMedia(exercise, catalogInfo);
   const [showControls, setShowControls] = useState(() => setsCompleted > 0);
   const [restRemaining, setRestRemaining] = useState<number | null>(null);
 
@@ -341,13 +342,11 @@ function ExerciseItem({
       </button>
       <div className="training-split__exerciseMain">
         <div className="training-split__exerciseMedia">
-          {gif ? (
-            <img
-              src={gif}
-              alt={exercise.name}
-              className="training-split__exerciseImage"
-              loading="lazy"
-              referrerPolicy="no-referrer"
+          {mediaUrls.length > 0 ? (
+            <ExerciseMediaGallery
+              exerciseName={exercise.name}
+              urls={mediaUrls}
+              compact
             />
           ) : (
             <span className="training-split__exercisePlaceholder">Sem imagem</span>
@@ -446,7 +445,7 @@ function ExerciseDetail({
   onClose,
 }: ExerciseDetailProps) {
   const muscles = resolveMuscles(exercise, catalogInfo);
-  const gif = exercise.gifUrl ?? catalogInfo?.gifUrl;
+  const mediaUrls = resolveExerciseMedia(exercise, catalogInfo);
   const loadHistory = [...(exercise.loadHistory ?? [])].sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1));
 
   return (
@@ -459,10 +458,8 @@ function ExerciseDetail({
           </button>
         </div>
         {muscles.length > 0 && <p className="training-detail__muscles">Ativação: {muscles.join(", ")}</p>}
-        {gif && (
-          <div className="training-detail__media">
-            <img src={gif} alt={`Demonstração de ${exercise.name}`} referrerPolicy="no-referrer" />
-          </div>
+        {mediaUrls.length > 0 && (
+          <ExerciseMediaGallery exerciseName={exercise.name} urls={mediaUrls} />
         )}
         <div className="training-detail__section">
           <h5>Observações</h5>
@@ -547,6 +544,46 @@ function resolveMuscles(exercise: Exercise, info?: ExerciseCatalogItem) {
   info?.muscles?.forEach((muscle) => muscle && muscles.add(muscle));
   info?.secondaryMuscles?.forEach((muscle) => muscle && muscles.add(muscle));
   return Array.from(muscles);
+}
+
+function ExerciseMediaGallery({
+  exerciseName,
+  urls,
+  compact = false,
+}: {
+  exerciseName: string;
+  urls: string[];
+  compact?: boolean;
+}) {
+  const visibleUrls = compact ? urls.slice(0, 3) : urls;
+  return (
+    <div
+      className={`training-mediaGallery ${
+        compact ? "training-mediaGallery--compact" : "training-mediaGallery--detail"
+      }`}
+    >
+      {visibleUrls.map((url, index) => (
+        <a
+          key={url}
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`Abrir imagem ${index + 1} de ${exerciseName}`}
+          title="Clique para abrir a imagem"
+        >
+          <img
+            src={url}
+            alt={`${exerciseName} — referência ${index + 1}`}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+          />
+          {compact && index === visibleUrls.length - 1 && urls.length > visibleUrls.length && (
+            <span className="training-mediaGallery__more">+{urls.length - visibleUrls.length}</span>
+          )}
+        </a>
+      ))}
+    </div>
+  );
 }
 
 const style = new CSSStyleSheet();
@@ -660,10 +697,53 @@ style.replaceSync(`
   flex-shrink: 0;
   border: 1px solid rgba(148, 163, 184, 0.3);
 }
-.training-split__exerciseImage {
+.training-mediaGallery {
   width: 100%;
   height: 100%;
+  display: grid;
+  gap: 2px;
+}
+.training-mediaGallery a {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.12);
+}
+.training-mediaGallery img {
+  width: 100%;
+  height: 100%;
+  display: block;
   object-fit: cover;
+  transition: transform 0.18s ease;
+}
+.training-mediaGallery a:hover img {
+  transform: scale(1.04);
+}
+.training-mediaGallery--compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+.training-mediaGallery--compact a:only-child {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+}
+.training-mediaGallery--compact a:first-child:nth-last-child(2),
+.training-mediaGallery--compact a:first-child:nth-last-child(2) ~ a {
+  grid-row: 1 / -1;
+}
+.training-mediaGallery--compact a:first-child:nth-last-child(3) {
+  grid-row: 1 / -1;
+}
+.training-mediaGallery__more {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.58);
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 800;
 }
 .training-split__exercisePlaceholder {
   font-size: 0.75rem;
@@ -862,8 +942,13 @@ style.replaceSync(`
   margin: 0;
   color: #475569;
 }
-.training-detail__media img {
-  width: 100%;
+.training-mediaGallery--detail {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  height: auto;
+}
+.training-mediaGallery--detail a {
+  aspect-ratio: 4 / 3;
+  border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 12px;
 }
 .training-detail__section {

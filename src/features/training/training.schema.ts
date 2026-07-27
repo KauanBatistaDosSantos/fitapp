@@ -20,6 +20,7 @@ export const Exercise = z.object({
   loadKg: z.number().optional(),
   notes: z.string().optional(),
   gifUrl: z.string().url().optional(),
+  mediaUrls: z.array(z.string().url()).optional(),
   muscles: z.array(z.string()).optional(),
   secondaryMuscles: z.array(z.string()).optional(),
   substitutions: z.array(z.string()).optional(),
