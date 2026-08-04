@@ -1,10 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Split, TrainingTemplate, TrainingLog, Exercise } from "./training.schema";
+import type { Split, TrainingTemplate, TrainingLog, Exercise, EquipmentType } from "./training.schema";
 import { sessionProgress, isToday } from "./training.service";
 import type { ExerciseCatalogItem, TrainingPreferences } from "./training.store";
 import { defaultSplitLabels } from "./training.store";
 import { resolveExerciseMedia } from "./training.media";
 import { TrainingMediaGallery } from "./TrainingMediaGallery";
+import { useExerciseTimer } from "./useExerciseTimer";
+import { getLoadProgressionSuggestion } from "./training.progression";
+import {
+  equipmentLabels,
+  equipmentLoadHints,
+  getExerciseLoadForEquipment,
+  inferEquipmentType,
+} from "./training.equipment";
+import { MuscleBadge } from "./MuscleBadge";
+import { muscleAccentStyle } from "./training.muscles";
 
 type TrainingSplitProps = {
   split: Split;
@@ -15,7 +25,13 @@ type TrainingSplitProps = {
   onTogglePart: (split: Split, part: "am" | "pm") => void;
   onToggleCardio: (split: Split, id: string) => void;
   onSetSetProgress: (split: Split, id: string, setsCompleted: number) => void;
-  onRecordLoad: (split: Split, id: string, loadKg: number) => void;
+  onRecordLoad: (
+    split: Split,
+    id: string,
+    loadKg: number,
+    completedSets?: number,
+    equipment?: EquipmentType,
+  ) => void;
   onUpdateExercise: (split: Split, id: string, patch: Partial<Exercise>) => void;
 };
 
@@ -27,7 +43,22 @@ type DetailState = {
   id: string;
   notes: string;
   load: string;
+  equipment: EquipmentType;
 };
+
+function createDetailState(exercise: Exercise): DetailState {
+  const latestEquipment = [...(exercise.loadHistory ?? [])]
+    .sort((a, b) => a.dateISO.localeCompare(b.dateISO))
+    .at(-1)?.equipment;
+  const equipment = inferEquipmentType(exercise.name, latestEquipment);
+  const load = getExerciseLoadForEquipment(exercise, equipment);
+  return {
+    id: exercise.id,
+    notes: exercise.notes ?? "",
+    equipment,
+    load: load != null ? String(load) : "",
+  };
+}
 
 export function TrainingSplit({
   split,
@@ -131,13 +162,7 @@ export function TrainingSplit({
                 setsCompleted={item.setsCompleted}
                 catalogInfo={catalogById[item.exercise.catalogId ?? ""]}
                 displayFormat={preferences.displayFormat}
-                onOpenDetails={() =>
-                  setDetailState({
-                    id: item.exercise.id,
-                    notes: item.exercise.notes ?? "",
-                    load: item.exercise.loadKg != null ? String(item.exercise.loadKg) : "",
-                  })
-                }
+                onOpenDetails={() => setDetailState(createDetailState(item.exercise))}
                 onSetProgress={(sets) => onSetSetProgress(split, item.exercise.id, sets)}
               />
             ),
@@ -185,13 +210,7 @@ export function TrainingSplit({
                       setsCompleted={log?.setProgress[exercise.id] ?? (log?.doneExercises.includes(exercise.id) ? exercise.sets : 0)}
                       catalogInfo={catalogById[exercise.catalogId ?? ""]}
                       displayFormat={preferences.displayFormat}
-                      onOpenDetails={() =>
-                        setDetailState({
-                          id: exercise.id,
-                          notes: exercise.notes ?? "",
-                          load: exercise.loadKg != null ? String(exercise.loadKg) : "",
-                        })
-                      }
+                      onOpenDetails={() => setDetailState(createDetailState(exercise))}
                       onSetProgress={(sets) => onSetSetProgress(split, exercise.id, sets)}
                     />
                   </li>
@@ -216,13 +235,36 @@ export function TrainingSplit({
           onClose={() => setDetailState(null)}
           notes={detailState.notes}
           load={detailState.load}
+          equipment={detailState.equipment}
+          completedSets={
+            log?.setProgress[detailExercise.id] ??
+            (log?.doneExercises.includes(detailExercise.id) ? detailExercise.sets : 0)
+          }
           onNotesChange={(value) => setDetailState((prev) => (prev ? { ...prev, notes: value } : prev))}
           onLoadChange={(value) => setDetailState((prev) => (prev ? { ...prev, load: value } : prev))}
+          onEquipmentChange={(equipment) =>
+            setDetailState((prev) => {
+              if (!prev) return prev;
+              const equipmentLoad = getExerciseLoadForEquipment(detailExercise, equipment);
+              return {
+                ...prev,
+                equipment,
+                load: equipmentLoad != null ? String(equipmentLoad) : "",
+              };
+            })
+          }
           onSaveNotes={() => onUpdateExercise(split, detailExercise.id, { notes: detailState.notes.trim() || undefined })}
           onRegisterLoad={() => {
             const loadValue = Number(detailState.load);
             if (!Number.isFinite(loadValue) || loadValue <= 0) return;
-            onRecordLoad(split, detailExercise.id, loadValue);
+            onRecordLoad(
+              split,
+              detailExercise.id,
+              loadValue,
+              log?.setProgress[detailExercise.id] ??
+                (log?.doneExercises.includes(detailExercise.id) ? detailExercise.sets : 0),
+              detailState.equipment,
+            );
             setDetailState((prev) => (prev ? { ...prev, load: "" } : prev));
           }}
         />
@@ -277,62 +319,47 @@ function ExerciseItem({
   const muscles = resolveMuscles(exercise, catalogInfo);
   const mediaUrls = resolveExerciseMedia(exercise, catalogInfo);
   const [showControls, setShowControls] = useState(() => setsCompleted > 0);
-  const [restRemaining, setRestRemaining] = useState<number | null>(null);
+  const timer = useExerciseTimer(exercise.id);
+  const timerPhase = timer.phase;
+  const clearExerciseTimer = timer.clearTimer;
 
   useEffect(() => {
     if (setsCompleted > 0) {
       setShowControls(true);
     }
-    if (setsCompleted >= exercise.sets) {
-      setRestRemaining(null);
-    }
-  }, [setsCompleted, exercise.sets]);
-
-  useEffect(() => {
-    if (restRemaining == null || restRemaining <= 0) return;
-    const interval = window.setInterval(() => {
-      setRestRemaining((prev) => {
-        if (prev == null) return prev;
-        if (prev <= 1) return 0;
-        return prev - 1;
-      });
-    }, 1000);
-    return () => window.clearInterval(interval);
-  }, [restRemaining]);
+  }, [setsCompleted]);
 
   const progressPercent = Math.min(100, Math.round((setsCompleted / Math.max(exercise.sets, 1)) * 100));
-  const isResting = restRemaining != null && restRemaining > 0;
   const isCompleted = setsCompleted >= exercise.sets;
+  const currentSeries = Math.min(setsCompleted + 1, exercise.sets);
 
-  const handlePlay = () => {
+  useEffect(() => {
+    if (isCompleted && timerPhase) clearExerciseTimer();
+  }, [clearExerciseTimer, isCompleted, timerPhase]);
+
+  const handleCompleteSeries = () => {
     setShowControls(true);
     if (isCompleted) return;
     const nextValue = Math.min(setsCompleted + 1, exercise.sets);
     onSetProgress(nextValue);
     if (nextValue < exercise.sets) {
-      setRestRemaining(exercise.restSec ?? 60);
+      timer.startRest(exercise.restSec ?? 60);
     } else {
-      setRestRemaining(null);
+      timer.clearTimer();
     }
   };
 
   const handleSetChange = (value: number) => {
     setShowControls(true);
+    timer.clearTimer();
     onSetProgress(value);
-    if (value >= exercise.sets || value < setsCompleted) {
-      setRestRemaining(null);
-    }
   };
 
-  const playLabel = isCompleted
-    ? "Concluído"
-    : setsCompleted === 0
-    ? "Iniciar série"
-    : "Próxima série";
-  const playIcon = isCompleted ? "✓" : "▶️";
-
   return (
-    <div className={`training-split__exercise ${done ? "training-split__exercise--done" : ""}`}>
+    <div
+      className={`training-split__exercise ${done ? "training-split__exercise--done" : ""}`}
+      style={muscleAccentStyle(muscles[0])}
+    >
       <button
         type="button"
         className="training-split__detailButton"
@@ -358,22 +385,67 @@ function ExerciseItem({
             <div className="training-split__exerciseHeading">
               <div className="training-split__exerciseMeta">
                 <span className="training-split__exerciseName">{exercise.name}</span>
-                {muscles.length > 0 && <span className="training-split__exerciseMuscle">{muscles.join(", ")}</span>}
+                {muscles.length > 0 && (
+                  <span className="training-split__exerciseMuscles">
+                    {muscles.map((muscle) => <MuscleBadge key={muscle} muscle={muscle} />)}
+                  </span>
+                )}
                 <span className="training-split__exerciseDetail">{detail}</span>
               </div>
             </div>
-            {isResting && !isCompleted && (
-              <div className="training-split__restNotice">Descanso: {formatSeconds(restRemaining)}</div>
+            {(timer.phase === "working" || timer.phase === "work-paused") && !isCompleted && (
+              <div className="training-split__seriesNotice">
+                <strong>
+                  Série {currentSeries} {timer.phase === "work-paused" ? "pausada" : "em andamento"}
+                </strong>
+                <span>{formatSeconds(timer.seriesElapsedSec)}</span>
+              </div>
+            )}
+            {(timer.phase === "resting" || timer.phase === "rest-paused") && !isCompleted && (
+              <div className="training-split__restNotice">
+                <strong>
+                  Descanso entre séries {timer.phase === "rest-paused" ? "pausado" : ""}
+                </strong>
+                <span>{formatSeconds(timer.restRemainingSec)}</span>
+              </div>
             )}
           </div>
-          <button
-            type="button"
-            className={`training-split__play ${isCompleted ? "training-split__play--done" : ""}`}
-            onClick={handlePlay}
-          >
-            <span aria-hidden="true">{playIcon}</span>
-            <span>{playLabel}</span>
-          </button>
+          <div className="training-split__sessionActions">
+            {isCompleted ? (
+              <button type="button" className="training-split__play training-split__play--done" disabled>
+                <span aria-hidden="true">✓</span>
+                <span>Concluído</span>
+              </button>
+            ) : timer.phase === "working" ? (
+              <>
+                <button type="button" className="training-split__sessionSecondary" onClick={timer.pauseSeries}>Pausar série</button>
+                <button type="button" className="training-split__sessionSecondary" onClick={timer.restartSeries}>Reiniciar</button>
+                <button type="button" className="training-split__play" onClick={handleCompleteSeries}>Concluir série</button>
+              </>
+            ) : timer.phase === "work-paused" ? (
+              <>
+                <button type="button" className="training-split__sessionSecondary" onClick={timer.resumeSeries}>Retomar série</button>
+                <button type="button" className="training-split__sessionSecondary" onClick={timer.restartSeries}>Reiniciar</button>
+                <button type="button" className="training-split__play" onClick={handleCompleteSeries}>Concluir série</button>
+              </>
+            ) : timer.phase === "resting" ? (
+              <>
+                <button type="button" className="training-split__sessionSecondary" onClick={timer.pauseRest}>Pausar descanso</button>
+                <button type="button" className="training-split__play" onClick={timer.startSeries}>Iniciar próxima agora</button>
+              </>
+            ) : timer.phase === "rest-paused" ? (
+              <>
+                <button type="button" className="training-split__sessionSecondary" onClick={timer.resumeRest}>Retomar descanso</button>
+                <button type="button" className="training-split__sessionSecondary" onClick={() => timer.startRest(exercise.restSec ?? 60)}>Reiniciar descanso</button>
+                <button type="button" className="training-split__play" onClick={timer.startSeries}>Iniciar próxima agora</button>
+              </>
+            ) : (
+              <button type="button" className="training-split__play" onClick={timer.startSeries}>
+                <span aria-hidden="true">▶️</span>
+                <span>Iniciar série {currentSeries}</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
       {showControls && (
@@ -410,7 +482,7 @@ function SetCounter({ total, completed, onChange }: SetCounterProps) {
         type="button"
         className={`training-split__set ${active ? "training-split__set--active" : ""}`}
         onClick={() => onChange(active && completed === i ? i - 1 : i)}
-        aria-label={`Marcar série ${i}`}
+        aria-label={`Definir ${i} ${i === 1 ? "série concluída" : "séries concluídas"}`}
       >
         {i}
       </button>,
@@ -426,8 +498,11 @@ type ExerciseDetailProps = {
   substitutions: ExerciseCatalogItem[];
   notes: string;
   load: string;
+  equipment: EquipmentType;
+  completedSets: number;
   onNotesChange: (value: string) => void;
   onLoadChange: (value: string) => void;
+  onEquipmentChange: (value: EquipmentType) => void;
   onSaveNotes: () => void;
   onRegisterLoad: () => void;
   onClose: () => void;
@@ -439,8 +514,11 @@ function ExerciseDetail({
   substitutions,
   notes,
   load,
+  equipment,
+  completedSets,
   onNotesChange,
   onLoadChange,
+  onEquipmentChange,
   onSaveNotes,
   onRegisterLoad,
   onClose,
@@ -448,6 +526,7 @@ function ExerciseDetail({
   const muscles = resolveMuscles(exercise, catalogInfo);
   const mediaUrls = resolveExerciseMedia(exercise, catalogInfo);
   const loadHistory = [...(exercise.loadHistory ?? [])].sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1));
+  const loadSuggestion = getLoadProgressionSuggestion(exercise, completedSets, muscles, equipment);
 
   return (
     <div className="training-detail" role="dialog" aria-modal="true">
@@ -458,7 +537,14 @@ function ExerciseDetail({
             ×
           </button>
         </div>
-        {muscles.length > 0 && <p className="training-detail__muscles">Ativação: {muscles.join(", ")}</p>}
+        {muscles.length > 0 && (
+          <div className="training-detail__muscles">
+            <span>Ativação</span>
+            <div className="training-detail__muscleBadges">
+              {muscles.map((muscle) => <MuscleBadge key={muscle} muscle={muscle} />)}
+            </div>
+          </div>
+        )}
         {mediaUrls.length > 0 && (
           <TrainingMediaGallery exerciseName={exercise.name} urls={mediaUrls} />
         )}
@@ -473,6 +559,40 @@ function ExerciseDetail({
         </div>
         <div className="training-detail__section">
           <h5>Registro de carga</h5>
+          <label className="training-detail__equipment">
+            Equipamento usado
+            <select
+              value={equipment}
+              onChange={(event) => onEquipmentChange(event.target.value as EquipmentType)}
+            >
+              {(Object.entries(equipmentLabels) as [EquipmentType, string][]).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+            <small>{equipmentLoadHints[equipment]}</small>
+          </label>
+          <div className={`training-detail__loadSuggestion training-detail__loadSuggestion--${loadSuggestion.status}`}>
+            <strong>Progressão sugerida · {equipmentLabels[equipment]}</strong>
+            {loadSuggestion.status === "increase" && loadSuggestion.suggestedKg ? (
+              <>
+                <span>
+                  {loadSuggestion.currentKg?.toFixed(1)} kg → {loadSuggestion.suggestedKg.toFixed(1)} kg
+                  {loadSuggestion.percentage ? ` (+${loadSuggestion.percentage}%)` : ""}
+                </span>
+                <p>{loadSuggestion.message}</p>
+                <button type="button" onClick={() => onLoadChange(String(loadSuggestion.suggestedKg))}>
+                  Usar sugestão no campo
+                </button>
+              </>
+            ) : (
+              <p>{loadSuggestion.message}</p>
+            )}
+            {loadSuggestion.daysSinceLastRecord != null && (
+              <small>
+                Último registro: {loadSuggestion.daysSinceLastRecord === 0 ? "hoje" : `há ${loadSuggestion.daysSinceLastRecord} dia(s)`}
+              </small>
+            )}
+          </div>
           <div className="training-detail__formRow">
             <input
               value={load}
@@ -490,9 +610,12 @@ function ExerciseDetail({
             <p className="training-detail__empty">Ainda sem histórico de cargas.</p>
           ) : (
             <ul className="training-detail__history">
-              {loadHistory.map((entry) => (
-                <li key={`${entry.dateISO}-${entry.loadKg}`}>
-                  <span>{new Date(entry.dateISO).toLocaleDateString("pt-BR")}</span>
+              {loadHistory.map((entry, index) => (
+                <li key={`${entry.dateISO}-${entry.loadKg}-${entry.equipment ?? "legacy"}-${index}`}>
+                  <span>
+                    {new Date(entry.dateISO).toLocaleDateString("pt-BR")}
+                    <small>{entry.equipment ? equipmentLabels[entry.equipment] : "Equipamento não identificado"}</small>
+                  </span>
                   <strong>{entry.loadKg.toFixed(1)} kg</strong>
                 </li>
               ))}
@@ -523,7 +646,13 @@ function formatSeconds(value: number | null | undefined) {
 }
 
 function formatExerciseDetail(exercise: Exercise, format: TrainingPreferences["displayFormat"]) {
-  const loadText = exercise.loadKg != null ? `${exercise.loadKg.toFixed(1)} kg` : undefined;
+  const latestLoad = [...(exercise.loadHistory ?? [])]
+    .sort((a, b) => a.dateISO.localeCompare(b.dateISO))
+    .at(-1);
+  const loadValue = latestLoad?.loadKg ?? exercise.loadKg;
+  const loadText = loadValue != null
+    ? `${loadValue.toFixed(1)} kg${latestLoad?.equipment ? ` · ${equipmentLabels[latestLoad.equipment]}` : ""}`
+    : undefined;
   if (format === "inline") {
     return [
       `${exercise.sets} x ${exercise.reps}`,
@@ -542,6 +671,7 @@ function resolveMuscles(exercise: Exercise, info?: ExerciseCatalogItem) {
   const muscles = new Set<string>();
   exercise.muscles?.forEach((muscle) => muscle && muscles.add(muscle));
   exercise.secondaryMuscles?.forEach((muscle) => muscle && muscles.add(muscle));
+  if (info?.muscle) muscles.add(info.muscle);
   info?.muscles?.forEach((muscle) => muscle && muscles.add(muscle));
   info?.secondaryMuscles?.forEach((muscle) => muscle && muscles.add(muscle));
   return Array.from(muscles);
@@ -634,6 +764,7 @@ style.replaceSync(`
   flex-direction: column;
   gap: 14px;
   border: 1px solid rgba(148, 163, 184, 0.35);
+  border-left: 5px solid var(--muscle-color, #94a3b8);
   border-radius: 16px;
   padding: 16px;
   background: white;
@@ -691,9 +822,11 @@ style.replaceSync(`
 .training-split__exerciseName {
   font-weight: 700;
 }
-.training-split__exerciseMuscle {
-  font-size: 0.8rem;
-  color: #64748b;
+.training-split__exerciseMuscles,
+.training-detail__muscleBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 .training-split__exerciseDetail {
   font-size: 0.85rem;
@@ -735,10 +868,44 @@ style.replaceSync(`
   box-shadow: none;
   cursor: default;
 }
+.training-split__sessionActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 7px;
+  margin-top: auto;
+}
+.training-split__sessionActions .training-split__play {
+  margin-top: 0;
+}
+.training-split__sessionSecondary {
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 999px;
+  padding: 6px 11px;
+  background: rgba(219, 234, 254, 0.6);
+  color: #1d4ed8;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.training-split__seriesNotice,
 .training-split__restNotice {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 8px;
+  border-radius: 10px;
+  padding: 6px 9px;
   font-size: 0.85rem;
   color: #2563eb;
-  font-weight: 600;
+  background: rgba(219, 234, 254, 0.62);
+}
+.training-split__seriesNotice span,
+.training-split__restNotice span {
+  min-width: 48px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  text-align: right;
 }
 .training-split__exerciseControls {
   display: flex;
@@ -854,6 +1021,11 @@ style.replaceSync(`
 .training-detail__muscles {
   margin: 0;
   color: #475569;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 .training-detail__section {
   display: flex;
@@ -875,6 +1047,44 @@ style.replaceSync(`
 .training-detail__formRow input {
   flex: 1;
 }
+.training-detail__equipment {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.training-detail__equipment small {
+  color: #64748b;
+  font-weight: 400;
+}
+.training-detail__loadSuggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.85);
+}
+.training-detail__loadSuggestion p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.88rem;
+}
+.training-detail__loadSuggestion > span {
+  color: #166534;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+.training-detail__loadSuggestion small {
+  color: #64748b;
+}
+.training-detail__loadSuggestion button {
+  align-self: flex-start;
+}
+.training-detail__loadSuggestion--increase {
+  border-color: rgba(34, 197, 94, 0.38);
+  background: rgba(220, 252, 231, 0.65);
+}
 .training-detail__empty {
   color: #94a3b8;
   font-size: 0.9rem;
@@ -889,7 +1099,18 @@ style.replaceSync(`
 .training-detail__history li {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 12px;
   font-size: 0.9rem;
+}
+.training-detail__history li > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.training-detail__history li small {
+  color: #64748b;
+  font-size: 0.75rem;
 }
 .training-detail__substitutions {
   margin: 0;
@@ -899,6 +1120,13 @@ style.replaceSync(`
   gap: 4px;
 }
 @media (max-width: 640px) {
+  .training-split__sessionActions {
+    justify-content: stretch;
+  }
+  .training-split__sessionActions button {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
   .training-detail__formRow {
     flex-direction: column;
   }

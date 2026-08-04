@@ -7,6 +7,9 @@ export type Split = z.infer<typeof Split>;
 export const CardioKind = z.string();
 export type CardioKind = z.infer<typeof CardioKind>;
 
+export const EquipmentType = z.enum(["machine", "barbell", "dumbbell", "other"]);
+export type EquipmentType = z.infer<typeof EquipmentType>;
+
 export const CardioBlock = z.object({ id: z.string(), kind: CardioKind, minutes: z.number() });
 export type CardioBlock = z.infer<typeof CardioBlock>;
 
@@ -18,6 +21,14 @@ export const Exercise = z.object({
   reps: z.string(), // "4x12" ou "12" ou "8-10"
   restSec: z.number().default(60),
   loadKg: z.number().optional(),
+  loadsByEquipment: z
+    .object({
+      machine: z.number().optional(),
+      barbell: z.number().optional(),
+      dumbbell: z.number().optional(),
+      other: z.number().optional(),
+    })
+    .optional(),
   notes: z.string().optional(),
   gifUrl: z.string().url().optional(),
   mediaUrls: z.array(z.string().url()).optional(),
@@ -29,6 +40,9 @@ export const Exercise = z.object({
       z.object({
         dateISO: z.string(),
         loadKg: z.number(),
+        equipment: EquipmentType.optional(),
+        completedSets: z.number().optional(),
+        targetSets: z.number().optional(),
       }),
     )
     .optional(),

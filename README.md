@@ -172,6 +172,8 @@ Também é possível cadastrar modalidades de cardio.
 
 Alterações feitas em um exercício da biblioteca são propagadas para os treinos que utilizam aquele cadastro.
 
+Cada grupo muscular recebe uma cor consistente na biblioteca, na montagem da divisão e durante o treino. A borda do card representa o grupo principal; as etiquetas mostram também os grupos secundários. Grupos personalizados recebem uma cor estável automaticamente.
+
 #### Importar exercícios por texto
 
 Para cadastrar vários exercícios de uma vez:
@@ -239,11 +241,35 @@ Na tela **Treino semanal**:
 
 1. Escolha uma divisão ou use o treino sugerido ao abrir a página.
 2. Marque os blocos de cardio realizados.
-3. Inicie a musculação e marque cada série concluída.
-4. Use o temporizador de descanso exibido entre as séries.
-5. Clique em uma imagem ou GIF para ampliar a referência sem sair do aplicativo.
-6. No visualizador, use os botões de anterior e próxima, as miniaturas ou as setas do teclado para navegar.
-7. Abra os detalhes do exercício para consultar toda a galeria, registrar carga ou adicionar observações.
+3. Clique em **Iniciar série** para abrir o cronômetro da execução.
+4. Durante a série, use **Pausar**, **Retomar** ou **Reiniciar** quando necessário.
+5. Clique em **Concluir série** somente depois de terminar as repetições; o descanso entre séries começará automaticamente.
+6. O descanso pode ser pausado, retomado, reiniciado ou encerrado para começar a próxima série antes do tempo.
+7. O contador usa o horário real e continua correto ao trocar de página, minimizar ou fechar e reabrir o aplicativo.
+8. Clique em uma imagem ou GIF para ampliar a referência sem sair do aplicativo.
+9. No visualizador, use os botões de anterior e próxima, as miniaturas ou as setas do teclado para navegar.
+10. Abra os detalhes do exercício para consultar toda a galeria, registrar carga ou adicionar observações.
+
+### Sugestão de progressão de carga
+
+Nos detalhes do exercício, o aplicativo analisa a carga e o histórico registrado.
+
+Antes de registrar, selecione o equipamento usado:
+
+- **Máquina ou polia:** informe o peso indicado pelo equipamento.
+- **Barra:** informe o peso total, incluindo a barra.
+- **Halteres:** informe o peso de cada halter.
+- **Outro:** use para elásticos, peso corporal com carga ou equipamentos diferentes.
+
+As cargas e sugestões são separadas por equipamento. Portanto, o histórico de um supino na máquina não é comparado ao supino feito com barra ou halteres. Registros antigos permanecem no histórico como **Equipamento não identificado**.
+
+- Aumento não é sugerido antes da conclusão de todas as séries.
+- A mesma carga precisa aparecer em pelo menos duas sessões em dias diferentes.
+- A sugestão usa um incremento conservador de **2,5%** para exercícios menores e **5%** para grandes grupos e membros inferiores.
+- O valor é arredondado para passos de **0,5 kg**.
+- Antes de aceitar, a pessoa deve ter alcançado o topo da faixa de repetições com técnica estável e sem dor.
+
+O tempo desde o último registro é exibido, mas tempo sozinho não autoriza progressão. A recomendação é informativa e não substitui a orientação de um profissional.
 
 Se um treino tiver apenas musculação, ele será apresentado somente como **Musculação**. Os termos “manhã/tarde” e “Parte 1/Parte 2” aparecem somente quando cardio e musculação coexistem.
 

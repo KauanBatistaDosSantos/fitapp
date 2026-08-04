@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { load, save, uid } from "@/lib/persist";
-import type { TrainingTemplate, Split, Exercise, CardioKind, TrainingLog } from "./training.schema";
+import type { TrainingTemplate, Split, Exercise, CardioKind, TrainingLog, EquipmentType } from "./training.schema";
 import {
   trainingCatalogSeed,
   cardioCatalogSeed,
@@ -78,7 +78,13 @@ type TrainingState = {
   toggleSessionPart: (split: Split, part: "am" | "pm") => void;
   toggleExerciseDone: (split: Split, id: string) => void;
   setExerciseSetProgress: (split: Split, id: string, setsCompleted: number) => void;
-  recordExerciseLoad: (split: Split, id: string, loadKg: number) => void;
+  recordExerciseLoad: (
+    split: Split,
+    id: string,
+    loadKg: number,
+    completedSets?: number,
+    equipment?: EquipmentType,
+  ) => void;
   reorderTrainingSplit: (from: Split, to: Split) => void;
   setPreferences: (patch: Partial<TrainingPreferences>) => void;
   ensureCurrentWeek: () => void;
@@ -578,7 +584,7 @@ export const useTraining = create<TrainingState>((set) => ({
       return { weekLog };
     }),
 
-  recordExerciseLoad: (split, id, loadKg) =>
+  recordExerciseLoad: (split, id, loadKg, completedSets, equipment = "other") =>
     set((state) => {
       const template = structuredClone(state.template);
       template[split].pm = template[split].pm.map((exercise) =>
@@ -586,7 +592,20 @@ export const useTraining = create<TrainingState>((set) => ({
           ? {
               ...exercise,
               loadKg,
-              loadHistory: [...(exercise.loadHistory ?? []), { dateISO: isoDate(), loadKg }],
+              loadsByEquipment: {
+                ...(exercise.loadsByEquipment ?? {}),
+                [equipment]: loadKg,
+              },
+              loadHistory: [
+                ...(exercise.loadHistory ?? []),
+                {
+                  dateISO: isoDate(),
+                  loadKg,
+                  equipment,
+                  completedSets,
+                  targetSets: exercise.sets,
+                },
+              ],
             }
           : exercise,
       );

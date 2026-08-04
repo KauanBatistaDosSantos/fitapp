@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Split, TrainingTemplate } from "./training.schema";
 import type { CardioCatalogItem, ExerciseCatalogItem } from "./training.store";
+import { MuscleBadge } from "./MuscleBadge";
+import { muscleAccentStyle } from "./training.muscles";
 
 const splitTitles: Record<Split, string> = {
   A: "Treino A",
@@ -353,15 +355,24 @@ export function TrainingDay({
                     load: exercise.loadKg != null ? String(exercise.loadKg) : "",
                   };
                 const isEditing = Boolean(editingExercises[exercise.id]);
+                const muscles = Array.from(
+                  new Set([
+                    ...(exercise.muscles ?? []),
+                    catalogInfo?.muscle ?? "",
+                    ...(catalogInfo?.secondaryMuscles ?? []),
+                  ]),
+                ).filter(Boolean);
 
                 return (
-                  <li key={exercise.id}>
+                  <li key={exercise.id} style={muscleAccentStyle(muscles[0])}>
                     <div className="training-day__exercise">
                       <div className="training-day__exerciseHeader">
                         <div className="training-day__exerciseInfo">
                           <span className="training-day__exerciseName">{exercise.name}</span>
-                          {catalogInfo?.muscles && catalogInfo.muscles.length > 0 && (
-                            <span className="training-day__exerciseMuscle">{catalogInfo.muscles.join(", ")}</span>
+                          {muscles.length > 0 && (
+                            <span className="training-day__exerciseMuscles">
+                              {muscles.map((muscle) => <MuscleBadge key={muscle} muscle={muscle} />)}
+                            </span>
                           )}
                         </div>
                         <div className="training-day__reorder">
@@ -533,6 +544,9 @@ style.replaceSync(`
   padding: 10px 12px;
   border: 1px solid rgba(148, 163, 184, 0.35);
 }
+.training-day__columns > div:last-child li {
+  border-left: 5px solid var(--muscle-color, #94a3b8);
+}
 .training-day__actions {
   display: flex;
   justify-content: flex-end;
@@ -581,10 +595,11 @@ style.replaceSync(`
   display: block;
   overflow-wrap: anywhere;
 }
-.training-day__exerciseMuscle {
-  display: block;
-  font-size: 0.8rem;
-  color: #64748b;
+.training-day__exerciseMuscles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
 }
 .training-day__form {
   display: flex;

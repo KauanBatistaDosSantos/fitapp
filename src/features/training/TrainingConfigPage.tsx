@@ -15,6 +15,8 @@ import {
 } from "./training.share";
 import { normalizeMediaUrls, parseMediaUrls, resolveExerciseMedia } from "./training.media";
 import { TrainingMediaGallery } from "./TrainingMediaGallery";
+import { MuscleBadge } from "./MuscleBadge";
+import { muscleAccentStyle } from "./training.muscles";
 
 export default function TrainingConfigPage() {
   const {
@@ -521,10 +523,18 @@ export default function TrainingConfigPage() {
 
         <div className="training-config__catalog">
           {catalog.map((item) => (
-            <div key={item.id} className="training-config__catalogItem">
+            <div
+              key={item.id}
+              className="training-config__catalogItem"
+              style={muscleAccentStyle(item.muscle)}
+            >
               <div>
                 <strong>{item.name}</strong>
-                <span className="training-config__catalogSubtitle">{[item.muscle, ...(item.secondaryMuscles ?? [])].filter(Boolean).join(", ")}</span>
+                <div className="training-config__catalogMuscles">
+                  {Array.from(new Set([item.muscle, ...(item.secondaryMuscles ?? [])]))
+                    .filter(Boolean)
+                    .map((muscle) => <MuscleBadge key={muscle} muscle={muscle} />)}
+                </div>
                 {item.defaultSets && item.defaultReps && (
                   <span className="training-config__catalogSubtitle">
                     Padrão: {item.defaultSets} × {item.defaultReps}
@@ -1164,6 +1174,7 @@ style.replaceSync(`
 }
 .training-config__catalogItem {
   border: 1px solid rgba(148, 163, 184, 0.3);
+  border-left: 5px solid var(--muscle-color, #94a3b8);
   border-radius: 14px;
   padding: 12px;
   background: rgba(248, 250, 252, 0.7);
@@ -1237,6 +1248,11 @@ style.replaceSync(`
   margin-top: 24px;
   display: grid;
   gap: 16px;
+}
+.training-config__catalogMuscles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 .training-config__shareGrid {
   display: grid;

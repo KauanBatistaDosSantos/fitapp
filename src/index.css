@@ -152,8 +152,40 @@ ul {
   margin: 0;
 }
 
+.muscle-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.muscle-badge__dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 999px;
+}
+
+html[data-theme="dark"] .muscle-badge {
+  color: var(--text) !important;
+}
+
 html[data-theme="dark"] .app-shell * {
   border-color: var(--border);
+}
+
+html[data-theme="dark"] .app-shell :is(
+  .training-split__exercise,
+  .training-config__catalogItem,
+  .training-day__columns > div:last-child li
+) {
+  border-left-color: var(--muscle-color, #94a3b8) !important;
 }
 
 html[data-theme="dark"] .app-shell :is(h1, h2, h3, h4, h5, strong, legend) {
@@ -197,7 +229,8 @@ html[data-theme="dark"] .app-shell :is(
   .training-config__importPreview li,
   .training-config__shareCard,
   .training-config__sharePreview,
-  .training-config__sharePreview li
+  .training-config__sharePreview li,
+  .training-detail__loadSuggestion
 ) {
   background: var(--surface-soft) !important;
   color: var(--text) !important;
