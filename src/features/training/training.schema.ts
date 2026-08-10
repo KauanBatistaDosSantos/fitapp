@@ -20,6 +20,7 @@ export const Exercise = z.object({
   sets: z.number(),
   reps: z.string(), // "4x12" ou "12" ou "8-10"
   restSec: z.number().default(60),
+  exerciseRestSec: z.number().optional(),
   loadKg: z.number().optional(),
   loadsByEquipment: z
     .object({

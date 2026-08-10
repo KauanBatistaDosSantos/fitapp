@@ -24,7 +24,7 @@ type TrainingDayProps = {
   onRemoveCardio: (id: string) => void;
   onUpdateCardio: (id: string, payload: { kind?: string; minutes?: number }) => void;
   onRemoveExercise: (id: string) => void;
-  onUpdateExercise: (id: string, payload: { sets: number; reps: string; restSec: number; notes?: string; loadKg?: number }) => void;
+  onUpdateExercise: (id: string, payload: { sets: number; reps: string; restSec: number; exerciseRestSec?: number; notes?: string; loadKg?: number }) => void;
   onMoveExercise: (id: string, direction: "up" | "down") => void;
   onMoveExerciseToSplit: (id: string, target: Split) => void;
 };
@@ -33,6 +33,7 @@ type ExerciseDraft = {
   sets: string;
   reps: string;
   rest: string;
+  exerciseRest: string;
   notes: string;
   load: string;
 };
@@ -79,6 +80,7 @@ export function TrainingDay({
           sets: String(exercise.sets),
           reps: exercise.reps,
           rest: String(exercise.restSec),
+          exerciseRest: String(exercise.exerciseRestSec ?? 90),
           notes: exercise.notes ?? "",
           load: exercise.loadKg != null ? String(exercise.loadKg) : "",
         };
@@ -136,12 +138,17 @@ export function TrainingDay({
     if (!draft) return;
     const sets = Number(draft.sets) || 1;
     const restSec = Number(draft.rest) || 30;
+    const parsedExerciseRest = Number(draft.exerciseRest);
+    const exerciseRestSec = Number.isFinite(parsedExerciseRest) && parsedExerciseRest >= 0
+      ? parsedExerciseRest
+      : 90;
     const reps = draft.reps.trim() || "10";
     const notes = draft.notes.trim() || undefined;
     const load = draft.load.trim();
     onUpdateExercise(id, {
       sets,
       restSec,
+      exerciseRestSec,
       reps,
       notes,
       loadKg: load ? Number(load) : undefined,
@@ -190,6 +197,7 @@ export function TrainingDay({
         sets: String(exercise.sets),
         reps: exercise.reps,
         rest: String(exercise.restSec),
+        exerciseRest: String(exercise.exerciseRestSec ?? 90),
         notes: exercise.notes ?? "",
         load: exercise.loadKg != null ? String(exercise.loadKg) : "",
       },
@@ -206,6 +214,7 @@ export function TrainingDay({
         sets: String(exercise.sets),
         reps: exercise.reps,
         rest: String(exercise.restSec),
+        exerciseRest: String(exercise.exerciseRestSec ?? 90),
         notes: exercise.notes ?? "",
         load: exercise.loadKg != null ? String(exercise.loadKg) : "",
       },
@@ -351,6 +360,7 @@ export function TrainingDay({
                     sets: String(exercise.sets),
                     reps: exercise.reps,
                     rest: String(exercise.restSec),
+                    exerciseRest: String(exercise.exerciseRestSec ?? 90),
                     notes: exercise.notes ?? "",
                     load: exercise.loadKg != null ? String(exercise.loadKg) : "",
                   };
@@ -421,6 +431,16 @@ export function TrainingDay({
                               />
                             </label>
                             <label>
+                              Até o próximo exercício (s)
+                              <input
+                                value={draft.exerciseRest}
+                                onChange={(e) => handleExerciseChange(exercise.id, "exerciseRest", e.target.value)}
+                                type="number"
+                                min={0}
+                                step={5}
+                              />
+                            </label>
+                            <label>
                               Carga (kg)
                               <input
                                 value={draft.load}
@@ -452,6 +472,7 @@ export function TrainingDay({
                             <span>{exercise.sets} séries</span>
                             <span>{exercise.reps} reps</span>
                             <span>Descanso: {exercise.restSec}s</span>
+                            <span>Próximo exercício: {exercise.exerciseRestSec ?? 90}s</span>
                             {exercise.loadKg != null && <span>Carga: {exercise.loadKg} kg</span>}
                           </div>
                           {exercise.notes && <p className="training-day__notesText">{exercise.notes}</p>}

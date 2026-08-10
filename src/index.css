@@ -202,6 +202,7 @@ html[data-theme="dark"] .app-shell :is(
   .training-split__block,
   .training-split__cardio,
   .training-split__exercise,
+  .training-split__transition,
   .training-split__detailButton,
   .training-detail__card,
   .training-preferences,
@@ -234,6 +235,10 @@ html[data-theme="dark"] .app-shell :is(
 ) {
   background: var(--surface-soft) !important;
   color: var(--text) !important;
+}
+
+html[data-theme="dark"] .training-split__transitionInfo > :is(span, strong) {
+  color: #93c5fd !important;
 }
 
 html[data-theme="dark"] .app-shell :is(

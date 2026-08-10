@@ -245,10 +245,12 @@ Na tela **Treino semanal**:
 4. Durante a série, use **Pausar**, **Retomar** ou **Reiniciar** quando necessário.
 5. Clique em **Concluir série** somente depois de terminar as repetições; o descanso entre séries começará automaticamente.
 6. O descanso pode ser pausado, retomado, reiniciado ou encerrado para começar a próxima série antes do tempo.
-7. O contador usa o horário real e continua correto ao trocar de página, minimizar ou fechar e reabrir o aplicativo.
-8. Clique em uma imagem ou GIF para ampliar a referência sem sair do aplicativo.
-9. No visualizador, use os botões de anterior e próxima, as miniaturas ou as setas do teclado para navegar.
-10. Abra os detalhes do exercício para consultar toda a galeria, registrar carga ou adicionar observações.
+7. Ao concluir a última série, começa o **descanso entre exercícios**, com o nome do próximo exercício e um botão para iniciá-lo imediatamente.
+8. O intervalo entre exercícios usa 90 segundos por padrão e pode ser alterado ao editar o exercício em **Montar treino**.
+9. Os contadores usam o horário real e continuam corretos ao trocar de página, minimizar ou fechar e reabrir o aplicativo.
+10. Clique em uma imagem ou GIF para ampliar a referência sem sair do aplicativo.
+11. No visualizador, use os botões de anterior e próxima, as miniaturas ou as setas do teclado para navegar.
+12. Abra os detalhes do exercício para consultar toda a galeria, registrar carga ou adicionar observações.
 
 ### Sugestão de progressão de carga
 

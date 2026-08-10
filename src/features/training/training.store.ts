@@ -393,6 +393,7 @@ export const useTraining = create<TrainingState>((set) => ({
         sets,
         reps,
         restSec,
+        exerciseRestSec: 90,
         catalogId: catalogItem?.id,
         muscles: catalogItem?.muscles ?? [catalogItem?.muscle ?? ""].filter(Boolean),
         gifUrl: catalogItem?.gifUrl,
@@ -766,6 +767,7 @@ export const useTraining = create<TrainingState>((set) => ({
               sets: exercise.sets,
               reps: exercise.reps,
               restSec: exercise.restSec,
+              exerciseRestSec: exercise.exerciseRestSec ?? 90,
               notes: exercise.notes,
               gifUrl: catalogItem?.gifUrl ?? exercise.gifUrl,
               mediaUrls: normalizeMediaUrls(

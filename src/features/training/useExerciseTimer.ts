@@ -9,11 +9,21 @@ type ExerciseTimerSession = {
   seriesElapsedSec?: number;
   restEndsAt?: number;
   restRemainingSec?: number;
+  context?: {
+    targetExerciseId?: string;
+    durationSec?: number;
+  };
 };
 
 type TimerStore = Record<string, ExerciseTimerSession>;
 
+type TimerSyncDetail = {
+  exerciseId: string;
+  session: ExerciseTimerSession | null;
+};
+
 const storageKey = "tr:exerciseTimers:v1";
+const timerSyncEvent = "fitapp:exercise-timer-sync";
 const maximumSessionAgeMs = 12 * 60 * 60 * 1000;
 
 export function useExerciseTimer(exerciseId: string) {
@@ -36,6 +46,17 @@ export function useExerciseTimer(exerciseId: string) {
     const interval = window.setInterval(() => setNow(Date.now()), 500);
     return () => window.clearInterval(interval);
   }, [session?.phase]);
+
+  useEffect(() => {
+    const handleSync = (event: Event) => {
+      const detail = (event as CustomEvent<TimerSyncDetail>).detail;
+      if (!detail || detail.exerciseId !== exerciseId) return;
+      setSession(detail.session);
+      setNow(Date.now());
+    };
+    window.addEventListener(timerSyncEvent, handleSync);
+    return () => window.removeEventListener(timerSyncEvent, handleSync);
+  }, [exerciseId]);
 
   const seriesElapsedSec = useMemo(() => {
     if (!session) return 0;
@@ -88,11 +109,12 @@ export function useExerciseTimer(exerciseId: string) {
       seriesElapsedSec: 0,
     });
 
-  const startRest = (seconds: number) =>
+  const startRest = (seconds: number, context?: ExerciseTimerSession["context"]) =>
     updateSession({
       phase: "resting",
       updatedAt: Date.now(),
       restEndsAt: Date.now() + Math.max(0, seconds) * 1000,
+      context,
     });
 
   const pauseRest = () =>
@@ -100,6 +122,7 @@ export function useExerciseTimer(exerciseId: string) {
       phase: "rest-paused",
       updatedAt: Date.now(),
       restRemainingSec,
+      context: session?.context,
     });
 
   const resumeRest = () =>
@@ -107,6 +130,7 @@ export function useExerciseTimer(exerciseId: string) {
       phase: "resting",
       updatedAt: Date.now(),
       restEndsAt: Date.now() + restRemainingSec * 1000,
+      context: session?.context,
     });
 
   const clearTimer = useCallback(() => updateSession(null), [updateSession]);
@@ -115,6 +139,7 @@ export function useExerciseTimer(exerciseId: string) {
     phase: session?.phase ?? null,
     seriesElapsedSec,
     restRemainingSec,
+    context: session?.context,
     startSeries,
     pauseSeries,
     resumeSeries,
@@ -124,6 +149,17 @@ export function useExerciseTimer(exerciseId: string) {
     resumeRest,
     clearTimer,
   };
+}
+
+export function startExerciseTimer(exerciseId: string) {
+  const now = Date.now();
+  const session: ExerciseTimerSession = {
+    phase: "working",
+    updatedAt: now,
+    seriesStartedAt: now,
+    seriesElapsedSec: 0,
+  };
+  writeSession(exerciseId, session);
 }
 
 function readTimerStore(): TimerStore {
@@ -147,6 +183,11 @@ function writeSession(exerciseId: string, session: ExerciseTimerSession | null) 
     if (session) store[exerciseId] = session;
     else delete store[exerciseId];
     localStorage.setItem(storageKey, JSON.stringify(store));
+    window.dispatchEvent(
+      new CustomEvent<TimerSyncDetail>(timerSyncEvent, {
+        detail: { exerciseId, session },
+      }),
+    );
   } catch {
     // O treino continua funcionando mesmo se o armazenamento estiver indisponível.
   }

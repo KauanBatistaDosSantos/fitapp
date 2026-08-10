@@ -442,14 +442,18 @@ style.replaceSync(`
   color: #0f172a;
 }
 .training-tabs {
-  display: inline-flex;
+  display: flex;
   gap: 8px;
   padding: 6px;
   background: rgba(148, 163, 184, 0.15);
   border-radius: 999px;
   margin: 18px 0;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
 }
 .training-tabs__item {
   background: transparent;
@@ -463,6 +467,7 @@ style.replaceSync(`
   align-items: center;
   gap: 2px;
   min-width: 110px;
+  flex: 0 0 auto;
 }
 .training-tabs__title {
   line-height: 1.1;
@@ -480,6 +485,11 @@ style.replaceSync(`
 }
 .training-tabs__item--active .training-tabs__subtitle {
   color: #1d4ed8;
+}
+@media (min-width: 720px) {
+  .training-tabs {
+    justify-content: center;
+  }
 }
 .training-actions {
   display: flex;

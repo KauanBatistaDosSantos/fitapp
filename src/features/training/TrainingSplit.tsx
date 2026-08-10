@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Split, TrainingTemplate, TrainingLog, Exercise, EquipmentType } from "./training.schema";
 import { sessionProgress, isToday } from "./training.service";
 import type { ExerciseCatalogItem, TrainingPreferences } from "./training.store";
 import { defaultSplitLabels } from "./training.store";
 import { resolveExerciseMedia } from "./training.media";
 import { TrainingMediaGallery } from "./TrainingMediaGallery";
-import { useExerciseTimer } from "./useExerciseTimer";
+import { startExerciseTimer, useExerciseTimer } from "./useExerciseTimer";
 import { getLoadProgressionSuggestion } from "./training.progression";
 import {
   equipmentLabels,
@@ -46,6 +46,12 @@ type DetailState = {
   equipment: EquipmentType;
 };
 
+type ExerciseTransitionState = {
+  split: Split;
+  targetId: string;
+  durationSec: number;
+};
+
 function createDetailState(exercise: Exercise): DetailState {
   const latestEquipment = [...(exercise.loadHistory ?? [])]
     .sort((a, b) => a.dateISO.localeCompare(b.dateISO))
@@ -74,6 +80,9 @@ export function TrainingSplit({
 }: TrainingSplitProps) {
   const progress = sessionProgress(plan, log);
   const [detailState, setDetailState] = useState<DetailState | null>(null);
+  const [exerciseTransition, setExerciseTransition] = useState<ExerciseTransitionState | null>(null);
+  const transitionTimer = useExerciseTimer(`between-exercises:${split}`);
+  const exerciseElements = useRef(new Map<string, HTMLDivElement>());
 
   const catalogById = useMemo(
     () =>
@@ -119,6 +128,69 @@ export function TrainingSplit({
   const detailCatalog = detailExercise?.catalogId ? catalogById[detailExercise.catalogId] : undefined;
   const rawLabel = preferences.splitLabels?.[split] ?? defaultSplitLabels[split] ?? "";
   const splitLabel = rawLabel.trim();
+  const transitionIsActive = transitionTimer.phase === "resting" || transitionTimer.phase === "rest-paused";
+  const persistedTransitionTarget = transitionTimer.context?.targetExerciseId
+    ? plan.pm.find((exercise) => exercise.id === transitionTimer.context?.targetExerciseId)
+    : undefined;
+  const fallbackTransitionTarget = transitionIsActive
+    ? plan.pm.find((exercise) => {
+        const completed = log?.setProgress[exercise.id] ?? 0;
+        return completed < exercise.sets && !log?.doneExercises.includes(exercise.id);
+      })
+    : undefined;
+  const transitionTarget = exerciseTransition?.split === split
+    ? plan.pm.find((exercise) => exercise.id === exerciseTransition.targetId)
+    : persistedTransitionTarget ?? fallbackTransitionTarget;
+  const transitionDurationSec = exerciseTransition?.split === split
+    ? exerciseTransition.durationSec
+    : transitionTimer.context?.durationSec ?? 90;
+
+  const handleExerciseCompleted = (exerciseId: string) => {
+    const currentIndex = plan.pm.findIndex((exercise) => exercise.id === exerciseId);
+    const orderedCandidates = currentIndex >= 0
+      ? [...plan.pm.slice(currentIndex + 1), ...plan.pm.slice(0, currentIndex)]
+      : plan.pm;
+    const nextExercise = orderedCandidates.find((exercise) => {
+      if (exercise.id === exerciseId) return false;
+      const completed = log?.setProgress[exercise.id] ?? 0;
+      return completed < exercise.sets && !log?.doneExercises.includes(exercise.id);
+    });
+    if (!nextExercise) {
+      transitionTimer.clearTimer();
+      setExerciseTransition(null);
+      return;
+    }
+    const sourceExercise = plan.pm.find((exercise) => exercise.id === exerciseId);
+    const durationSec = sourceExercise?.exerciseRestSec ?? 90;
+    setExerciseTransition({
+      split,
+      targetId: nextExercise.id,
+      durationSec,
+    });
+    transitionTimer.startRest(durationSec, {
+      targetExerciseId: nextExercise.id,
+      durationSec,
+    });
+  };
+
+  const handleStartNextExercise = () => {
+    if (!transitionTarget) return;
+    transitionTimer.clearTimer();
+    setExerciseTransition(null);
+    startExerciseTimer(transitionTarget.id);
+    window.requestAnimationFrame(() => {
+      exerciseElements.current.get(transitionTarget.id)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    });
+  };
+
+  const handleSeriesStarted = () => {
+    if (!transitionIsActive) return;
+    transitionTimer.clearTimer();
+    setExerciseTransition(null);
+  };
 
   return (
     <section className="training-split">
@@ -139,6 +211,42 @@ export function TrainingSplit({
         </div>
         <span className="training-split__progress">{Math.round(progress * 100)}%</span>
       </header>
+
+      {transitionIsActive && transitionTarget && (
+        <div className="training-split__transition" role="status" aria-live="polite">
+          <div className="training-split__transitionInfo">
+            <span>Descanso entre exercícios</span>
+            <strong>{formatSeconds(transitionTimer.restRemainingSec)}</strong>
+            <small>Próximo: {transitionTarget.name}</small>
+          </div>
+          <div className="training-split__transitionActions">
+            {transitionTimer.phase === "resting" ? (
+              <button type="button" className="training-split__sessionSecondary" onClick={transitionTimer.pauseRest}>
+                Pausar descanso
+              </button>
+            ) : (
+              <>
+                <button type="button" className="training-split__sessionSecondary" onClick={transitionTimer.resumeRest}>
+                  Retomar descanso
+                </button>
+                <button
+                  type="button"
+                  className="training-split__sessionSecondary"
+                  onClick={() => transitionTimer.startRest(transitionDurationSec, {
+                    targetExerciseId: transitionTarget.id,
+                    durationSec: transitionDurationSec,
+                  })}
+                >
+                  Reiniciar descanso
+                </button>
+              </>
+            )}
+            <button type="button" className="training-split__play" onClick={handleStartNextExercise}>
+              Iniciar próximo exercício agora
+            </button>
+          </div>
+        </div>
+      )}
 
       {preferences.mergeParts ? (
         <div className="training-split__combined">
@@ -164,6 +272,12 @@ export function TrainingSplit({
                 displayFormat={preferences.displayFormat}
                 onOpenDetails={() => setDetailState(createDetailState(item.exercise))}
                 onSetProgress={(sets) => onSetSetProgress(split, item.exercise.id, sets)}
+                onExerciseCompleted={() => handleExerciseCompleted(item.exercise.id)}
+                onSeriesStarted={handleSeriesStarted}
+                elementRef={(element) => {
+                  if (element) exerciseElements.current.set(item.exercise.id, element);
+                  else exerciseElements.current.delete(item.exercise.id);
+                }}
               />
             ),
           )}
@@ -212,6 +326,12 @@ export function TrainingSplit({
                       displayFormat={preferences.displayFormat}
                       onOpenDetails={() => setDetailState(createDetailState(exercise))}
                       onSetProgress={(sets) => onSetSetProgress(split, exercise.id, sets)}
+                      onExerciseCompleted={() => handleExerciseCompleted(exercise.id)}
+                      onSeriesStarted={handleSeriesStarted}
+                      elementRef={(element) => {
+                        if (element) exerciseElements.current.set(exercise.id, element);
+                        else exerciseElements.current.delete(exercise.id);
+                      }}
                     />
                   </li>
                 ))}
@@ -304,6 +424,9 @@ type ExerciseItemProps = {
   displayFormat: TrainingPreferences["displayFormat"];
   onOpenDetails: () => void;
   onSetProgress: (sets: number) => void;
+  onExerciseCompleted: () => void;
+  onSeriesStarted: () => void;
+  elementRef: (element: HTMLDivElement | null) => void;
 };
 
 function ExerciseItem({
@@ -314,6 +437,9 @@ function ExerciseItem({
   displayFormat,
   onOpenDetails,
   onSetProgress,
+  onExerciseCompleted,
+  onSeriesStarted,
+  elementRef,
 }: ExerciseItemProps) {
   const detail = formatExerciseDetail(exercise, displayFormat);
   const muscles = resolveMuscles(exercise, catalogInfo);
@@ -346,6 +472,7 @@ function ExerciseItem({
       timer.startRest(exercise.restSec ?? 60);
     } else {
       timer.clearTimer();
+      onExerciseCompleted();
     }
   };
 
@@ -353,12 +480,21 @@ function ExerciseItem({
     setShowControls(true);
     timer.clearTimer();
     onSetProgress(value);
+    if (value >= exercise.sets && setsCompleted < exercise.sets) {
+      onExerciseCompleted();
+    }
+  };
+
+  const handleStartSeries = () => {
+    onSeriesStarted();
+    timer.startSeries();
   };
 
   return (
     <div
       className={`training-split__exercise ${done ? "training-split__exercise--done" : ""}`}
       style={muscleAccentStyle(muscles[0])}
+      ref={elementRef}
     >
       <button
         type="button"
@@ -410,7 +546,9 @@ function ExerciseItem({
               </div>
             )}
           </div>
-          <div className="training-split__sessionActions">
+        </div>
+      </div>
+      <div className="training-split__sessionActions">
             {isCompleted ? (
               <button type="button" className="training-split__play training-split__play--done" disabled>
                 <span aria-hidden="true">✓</span>
@@ -431,22 +569,20 @@ function ExerciseItem({
             ) : timer.phase === "resting" ? (
               <>
                 <button type="button" className="training-split__sessionSecondary" onClick={timer.pauseRest}>Pausar descanso</button>
-                <button type="button" className="training-split__play" onClick={timer.startSeries}>Iniciar próxima agora</button>
+                <button type="button" className="training-split__play" onClick={handleStartSeries}>Iniciar próxima série agora</button>
               </>
             ) : timer.phase === "rest-paused" ? (
               <>
                 <button type="button" className="training-split__sessionSecondary" onClick={timer.resumeRest}>Retomar descanso</button>
                 <button type="button" className="training-split__sessionSecondary" onClick={() => timer.startRest(exercise.restSec ?? 60)}>Reiniciar descanso</button>
-                <button type="button" className="training-split__play" onClick={timer.startSeries}>Iniciar próxima agora</button>
+                <button type="button" className="training-split__play" onClick={handleStartSeries}>Iniciar próxima série agora</button>
               </>
             ) : (
-              <button type="button" className="training-split__play" onClick={timer.startSeries}>
+              <button type="button" className="training-split__play" onClick={handleStartSeries}>
                 <span aria-hidden="true">▶️</span>
                 <span>Iniciar série {currentSeries}</span>
               </button>
             )}
-          </div>
-        </div>
       </div>
       {showControls && (
         <div className="training-split__exerciseControls">
@@ -768,6 +904,8 @@ style.replaceSync(`
   border-radius: 16px;
   padding: 16px;
   background: white;
+  max-width: 100%;
+  overflow: hidden;
 }
 .training-split__exercise--done {
   border-color: rgba(37, 99, 235, 0.6);
@@ -797,6 +935,7 @@ style.replaceSync(`
 }
 .training-split__exerciseInfo {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -821,6 +960,7 @@ style.replaceSync(`
 }
 .training-split__exerciseName {
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 .training-split__exerciseMuscles,
 .training-detail__muscleBadges {
@@ -875,6 +1015,13 @@ style.replaceSync(`
   align-items: center;
   gap: 7px;
   margin-top: auto;
+  width: 100%;
+}
+.training-split__sessionActions button {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
 }
 .training-split__sessionActions .training-split__play {
   margin-top: 0;
@@ -1027,6 +1174,46 @@ style.replaceSync(`
   font-size: 0.85rem;
   font-weight: 700;
 }
+.training-split__transition {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.35);
+  border-radius: 16px;
+  background: rgba(219, 234, 254, 0.72);
+}
+.training-split__transitionInfo {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 3px 12px;
+  min-width: 0;
+}
+.training-split__transitionInfo > span {
+  color: #1d4ed8;
+  font-weight: 800;
+}
+.training-split__transitionInfo > strong {
+  color: #1d4ed8;
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+}
+.training-split__transitionInfo > small {
+  grid-column: 1 / -1;
+  color: #475569;
+}
+.training-split__transitionActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+.training-split__transitionActions .training-split__play {
+  align-self: center;
+  margin: 0;
+}
 .training-detail__section {
   display: flex;
   flex-direction: column;
@@ -1120,11 +1307,39 @@ style.replaceSync(`
   gap: 4px;
 }
 @media (max-width: 640px) {
+  .training-split {
+    padding: 12px;
+  }
+  .training-split__exercise {
+    padding: 12px;
+  }
+  .training-split__exerciseMain {
+    gap: 12px;
+  }
+  .training-split__exerciseMedia {
+    width: min(96px, 32vw);
+    height: min(96px, 32vw);
+  }
+  .training-split__exerciseContent {
+    padding-right: 42px;
+  }
   .training-split__sessionActions {
     justify-content: stretch;
   }
   .training-split__sessionActions button {
-    flex: 1 1 auto;
+    flex: 1 1 100%;
+    width: 100%;
+    justify-content: center;
+  }
+  .training-split__transition {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .training-split__transitionActions {
+    flex-direction: column;
+  }
+  .training-split__transitionActions button {
+    width: 100%;
     justify-content: center;
   }
   .training-detail__formRow {
