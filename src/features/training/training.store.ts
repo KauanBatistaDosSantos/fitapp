@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { load, save, uid } from "@/lib/persist";
-import type { TrainingTemplate, Split, Exercise, CardioKind, TrainingLog, EquipmentType } from "./training.schema";
+import type { TrainingTemplate, Split, Exercise, CardioKind, TrainingLog, EquipmentType, CardioPlacement, CardioBlock } from "./training.schema";
 import {
   trainingCatalogSeed,
   cardioCatalogSeed,
@@ -66,9 +66,15 @@ type TrainingState = {
   updateCatalogExercise: (id: string, patch: Partial<ExerciseCatalogItem>) => void;
   removeCatalogExercise: (id: string) => void;
   addCardioKind: (kind: CardioKind) => void;
-  addAmBlock: (split: Split, kind: CardioKind, minutes: number) => void;
+  addAmBlock: (
+    split: Split,
+    kind: CardioKind,
+    minutes: number,
+    placement?: CardioPlacement,
+    afterExerciseId?: string,
+  ) => void;
   addPmExercise: (split: Split, exId: string, sets: number, reps: string, restSec?: number) => void;
-  updateAmBlock: (split: Split, id: string, patch: Partial<{ kind: CardioKind; minutes: number }>) => void;
+  updateAmBlock: (split: Split, id: string, patch: Partial<Omit<CardioBlock, "id">>) => void;
   updatePmExercise: (split: Split, id: string, patch: Partial<Exercise>) => void;
   removePmExercise: (split: Split, id: string) => void;
   removeAmBlock: (split: Split, id: string) => void;
@@ -355,10 +361,16 @@ export const useTraining = create<TrainingState>((set) => ({
       return { cardioCatalog };
     }),
 
-  addAmBlock: (split, kind, minutes) =>
+  addAmBlock: (split, kind, minutes, placement = "before", afterExerciseId) =>
     set((state) => {
       const template = structuredClone(state.template);
-      template[split].am.push({ id: uid(), kind, minutes });
+      template[split].am.push({
+        id: uid(),
+        kind,
+        minutes,
+        placement,
+        afterExerciseId: placement === "between" ? afterExerciseId : undefined,
+      });
       save("tr:template", template);
       return { template };
     }),
@@ -371,6 +383,10 @@ export const useTraining = create<TrainingState>((set) => ({
           ? {
               ...block,
               ...patch,
+              afterExerciseId:
+                patch.placement === "between" || (patch.placement == null && block.placement === "between")
+                  ? patch.afterExerciseId ?? block.afterExerciseId
+                  : undefined,
               minutes:
                 patch.minutes != null && !Number.isNaN(patch.minutes) && patch.minutes > 0
                   ? patch.minutes
@@ -425,7 +441,10 @@ export const useTraining = create<TrainingState>((set) => ({
   removePmExercise: (split, id) =>
     set((state) => {
       const template = structuredClone(state.template);
+      const exerciseIndex = template[split].pm.findIndex((exercise) => exercise.id === id);
+      const previousExerciseId = exerciseIndex > 0 ? template[split].pm[exerciseIndex - 1]?.id : undefined;
       template[split].pm = template[split].pm.filter((exercise) => exercise.id !== id);
+      template[split].am = reanchorCardioBlocks(template[split].am, id, previousExerciseId);
       save("tr:template", template);
       return { template };
     }),
@@ -450,7 +469,9 @@ export const useTraining = create<TrainingState>((set) => ({
       const exerciseIndex = template[from].pm.findIndex((exercise) => exercise.id === id);
       if (exerciseIndex === -1) return {};
 
+      const previousExerciseId = exerciseIndex > 0 ? template[from].pm[exerciseIndex - 1]?.id : undefined;
       const [exercise] = template[from].pm.splice(exerciseIndex, 1);
+      template[from].am = reanchorCardioBlocks(template[from].am, id, previousExerciseId);
       template[to].pm.push(exercise);
 
       const sourceLog = state.weekLog.find((log) => log.split === from);
@@ -755,34 +776,44 @@ export const useTraining = create<TrainingState>((set) => ({
       plan.workouts.forEach((workout, index) => {
         const split = splitOrder[index];
         splitLabels[split] = workout.label;
+        const exercises = workout.exercises.map((exercise) => {
+          const catalogItem = catalogByName.get(normalizeCatalogName(exercise.name));
+          return {
+            id: uid(),
+            catalogId: catalogItem?.id,
+            name: exercise.name,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            restSec: exercise.restSec,
+            exerciseRestSec: exercise.exerciseRestSec ?? 90,
+            notes: exercise.notes,
+            gifUrl: catalogItem?.gifUrl ?? exercise.gifUrl,
+            mediaUrls: normalizeMediaUrls(
+              catalogItem?.mediaUrls,
+              catalogItem?.gifUrl,
+              exercise.mediaUrls,
+              exercise.gifUrl,
+            ),
+            muscles: exercise.muscles,
+            secondaryMuscles: exercise.secondaryMuscles,
+            substitutions: exercise.substitutions
+              ?.map((name) => catalogByName.get(normalizeCatalogName(name))?.id)
+              .filter((id): id is string => Boolean(id)),
+          };
+        });
         template[split] = {
           split,
-          am: workout.cardio.map((block) => ({ ...block, id: uid() })),
-          pm: workout.exercises.map((exercise) => {
-            const catalogItem = catalogByName.get(normalizeCatalogName(exercise.name));
-            return {
-              id: uid(),
-              catalogId: catalogItem?.id,
-              name: exercise.name,
-              sets: exercise.sets,
-              reps: exercise.reps,
-              restSec: exercise.restSec,
-              exerciseRestSec: exercise.exerciseRestSec ?? 90,
-              notes: exercise.notes,
-              gifUrl: catalogItem?.gifUrl ?? exercise.gifUrl,
-              mediaUrls: normalizeMediaUrls(
-                catalogItem?.mediaUrls,
-                catalogItem?.gifUrl,
-                exercise.mediaUrls,
-                exercise.gifUrl,
-              ),
-              muscles: exercise.muscles,
-              secondaryMuscles: exercise.secondaryMuscles,
-              substitutions: exercise.substitutions
-                ?.map((name) => catalogByName.get(normalizeCatalogName(name))?.id)
-                .filter((id): id is string => Boolean(id)),
-            };
-          }),
+          am: workout.cardio.map((block) => ({
+            id: uid(),
+            kind: block.kind,
+            minutes: block.minutes,
+            placement: block.placement ?? "before",
+            afterExerciseId:
+              block.placement === "between" && block.afterExerciseIndex != null
+                ? exercises[block.afterExerciseIndex]?.id
+                : undefined,
+          })),
+          pm: exercises,
         };
       });
 
@@ -818,6 +849,19 @@ function buildSetsMap(exercises: Exercise[]) {
     acc[exercise.id] = exercise.sets;
     return acc;
   }, {});
+}
+
+function reanchorCardioBlocks(
+  blocks: CardioBlock[],
+  removedExerciseId: string,
+  previousExerciseId?: string,
+) {
+  return blocks.map((block) => {
+    if (block.placement !== "between" || block.afterExerciseId !== removedExerciseId) return block;
+    return previousExerciseId
+      ? { ...block, afterExerciseId: previousExerciseId }
+      : { ...block, placement: "before" as const, afterExerciseId: undefined };
+  });
 }
 
 function normalizeCatalogName(name: string) {

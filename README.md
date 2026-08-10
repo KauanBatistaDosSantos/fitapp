@@ -202,12 +202,15 @@ O grupo muscular é sugerido automaticamente pelo nome. Séries e repetições r
 
 Escolha uma divisão e adicione:
 
-- Blocos de cardio, com modalidade e duração.
+- Blocos de cardio, com modalidade, duração e posição no treino.
 - Exercícios de musculação, com séries, repetições e descanso.
+
+Cada cardio pode ficar **antes da musculação**, **entre exercícios** ou **depois da musculação**. Ao escolher a posição entre exercícios, informe depois de qual exercício o cardio deve aparecer. A posição é configurada separadamente em cada treino: por exemplo, o cardio do treino A pode vir antes, o do treino B pode ficar no meio e o do treino C pode vir depois.
 
 Na prévia de cada divisão é possível:
 
 - Editar cardio e exercícios.
+- Alterar a posição de cada cardio na sequência.
 - Alterar séries, repetições, descanso, carga e observações.
 - Reordenar exercícios dentro do mesmo treino.
 - Mover um exercício para outra divisão usando **Mover para...**.
@@ -225,7 +228,7 @@ Para enviar:
 2. Use **Enviar treino** para abrir o compartilhamento do celular ou dispositivo.
 3. Se o compartilhamento direto não estiver disponível, use **Baixar arquivo** e envie o arquivo `.fitapp.json` como anexo.
 
-O arquivo inclui somente os treinos ativos, seus nomes, exercícios, séries, repetições, descanso, cardio e todas as imagens e referências cadastradas na biblioteca. Cargas utilizadas, histórico e progresso semanal não são compartilhados.
+O arquivo inclui somente os treinos ativos, seus nomes, exercícios, séries, repetições, descanso, cardio, a posição de cada cardio e todas as imagens e referências cadastradas na biblioteca. Cargas utilizadas, histórico e progresso semanal não são compartilhados.
 
 Para receber:
 
@@ -240,17 +243,18 @@ A importação mantém a biblioteca existente, adiciona os exercícios novos, su
 Na tela **Treino semanal**:
 
 1. Escolha uma divisão ou use o treino sugerido ao abrir a página.
-2. Marque os blocos de cardio realizados.
-3. Clique em **Iniciar série** para abrir o cronômetro da execução.
-4. Durante a série, use **Pausar**, **Retomar** ou **Reiniciar** quando necessário.
-5. Clique em **Concluir série** somente depois de terminar as repetições; o descanso entre séries começará automaticamente.
-6. O descanso pode ser pausado, retomado, reiniciado ou encerrado para começar a próxima série antes do tempo.
-7. Ao concluir a última série, começa o **descanso entre exercícios**, com o nome do próximo exercício e um botão para iniciá-lo imediatamente.
-8. O intervalo entre exercícios usa 90 segundos por padrão e pode ser alterado ao editar o exercício em **Montar treino**.
-9. Os contadores usam o horário real e continuam corretos ao trocar de página, minimizar ou fechar e reabrir o aplicativo.
-10. Clique em uma imagem ou GIF para ampliar a referência sem sair do aplicativo.
-11. No visualizador, use os botões de anterior e próxima, as miniaturas ou as setas do teclado para navegar.
-12. Abra os detalhes do exercício para consultar toda a galeria, registrar carga ou adicionar observações.
+2. Siga a sequência configurada; os cardios aparecem antes, entre exercícios ou depois da musculação conforme a escolha feita para aquele treino.
+3. Marque cada bloco de cardio quando for realizado.
+4. Clique em **Iniciar série** para abrir o cronômetro da execução.
+5. Durante a série, use **Pausar**, **Retomar** ou **Reiniciar** quando necessário.
+6. Clique em **Concluir série** somente depois de terminar as repetições; o descanso entre séries começará automaticamente.
+7. O descanso pode ser pausado, retomado, reiniciado ou encerrado para começar a próxima série antes do tempo.
+8. Ao concluir a última série, começa o **descanso entre exercícios** quando o próximo item pendente também for um exercício. Se houver um cardio configurado no meio, ele aparece como o próximo item da sequência.
+9. O intervalo entre exercícios usa 90 segundos por padrão e pode ser alterado ao editar o exercício em **Montar treino**.
+10. Os contadores usam o horário real e continuam corretos ao trocar de página, minimizar ou fechar e reabrir o aplicativo.
+11. Clique em uma imagem ou GIF para ampliar a referência sem sair do aplicativo.
+12. No visualizador, use os botões de anterior e próxima, as miniaturas ou as setas do teclado para navegar.
+13. Abra os detalhes do exercício para consultar toda a galeria, registrar carga ou adicionar observações.
 
 ### Sugestão de progressão de carga
 
@@ -273,7 +277,7 @@ As cargas e sugestões são separadas por equipamento. Portanto, o histórico de
 
 O tempo desde o último registro é exibido, mas tempo sozinho não autoriza progressão. A recomendação é informativa e não substitui a orientação de um profissional.
 
-Se um treino tiver apenas musculação, ele será apresentado somente como **Musculação**. Os termos “manhã/tarde” e “Parte 1/Parte 2” aparecem somente quando cardio e musculação coexistem.
+Se um treino tiver apenas musculação, ele será apresentado somente como **Musculação**. Quando houver cardio, a tela usa a ordem definida para o treino, sem presumir que cardio e musculação acontecem em horários diferentes do dia.
 
 ### Modo imersivo
 

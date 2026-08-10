@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Split, TrainingTemplate } from "./training.schema";
+import type { CardioBlock, CardioPlacement, Split, TrainingTemplate } from "./training.schema";
 import type { CardioCatalogItem, ExerciseCatalogItem } from "./training.store";
 import { MuscleBadge } from "./MuscleBadge";
 import { muscleAccentStyle } from "./training.muscles";
@@ -22,7 +22,7 @@ type TrainingDayProps = {
   catalog: ExerciseCatalogItem[];
   cardioCatalog: CardioCatalogItem[];
   onRemoveCardio: (id: string) => void;
-  onUpdateCardio: (id: string, payload: { kind?: string; minutes?: number }) => void;
+  onUpdateCardio: (id: string, payload: Partial<Omit<CardioBlock, "id">>) => void;
   onRemoveExercise: (id: string) => void;
   onUpdateExercise: (id: string, payload: { sets: number; reps: string; restSec: number; exerciseRestSec?: number; notes?: string; loadKg?: number }) => void;
   onMoveExercise: (id: string, direction: "up" | "down") => void;
@@ -41,6 +41,8 @@ type ExerciseDraft = {
 type CardioDraft = {
   kind: string;
   minutes: string;
+  placement: CardioPlacement;
+  afterExerciseId: string;
 };
 
 export function TrainingDay({
@@ -106,6 +108,8 @@ export function TrainingDay({
         next[block.id] = {
           kind: block.kind,
           minutes: String(block.minutes),
+          placement: block.placement ?? "before",
+          afterExerciseId: block.afterExerciseId ?? "",
         };
       }
       return next;
@@ -175,7 +179,14 @@ export function TrainingDay({
     const draft = cardioDrafts[id];
     if (!draft) return;
     const minutes = Number(draft.minutes) || 5;
-    const payload: { kind?: string; minutes?: number } = { minutes };
+    const placement = draft.placement === "between" && !draft.afterExerciseId
+      ? "before"
+      : draft.placement;
+    const payload: Partial<Omit<CardioBlock, "id">> = {
+      minutes,
+      placement,
+      afterExerciseId: placement === "between" ? draft.afterExerciseId : undefined,
+    };
     const kind = draft.kind.trim();
     if (kind) {
       payload.kind = kind;
@@ -234,6 +245,8 @@ export function TrainingDay({
       [id]: {
         kind: block.kind,
         minutes: String(block.minutes),
+        placement: block.placement ?? "before",
+        afterExerciseId: block.afterExerciseId ?? "",
       },
     }));
     setEditingCardio((prev) => ({ ...prev, [id]: true }));
@@ -247,6 +260,8 @@ export function TrainingDay({
       [id]: {
         kind: block.kind,
         minutes: String(block.minutes),
+        placement: block.placement ?? "before",
+        afterExerciseId: block.afterExerciseId ?? "",
       },
     }));
     setEditingCardio((prev) => {
@@ -266,7 +281,7 @@ export function TrainingDay({
       </header>
       <div className="training-day__columns">
         <div>
-          <strong>Parte 1 · Cardio</strong>
+          <strong>Cardios do treino</strong>
           {plan.am.length === 0 ? (
             <p className="training-day__empty">Sem blocos cadastrados.</p>
           ) : (
@@ -275,6 +290,8 @@ export function TrainingDay({
                 const cardioDraft = cardioDrafts[block.id] ?? {
                   kind: block.kind,
                   minutes: String(block.minutes),
+                  placement: block.placement ?? "before",
+                  afterExerciseId: block.afterExerciseId ?? "",
                 };
                 const isEditingCardio = Boolean(editingCardio[block.id]);
 
@@ -283,6 +300,7 @@ export function TrainingDay({
                     <div className="training-day__cardioHeader">
                       <span className="training-day__cardioTitle">
                         {block.kind} · {block.minutes} min
+                        <small>{formatCardioPlacement(block, plan.pm)}</small>
                       </span>
                       <div className="training-day__actions training-day__actions--gap">
                         {isEditingCardio ? (
@@ -335,6 +353,31 @@ export function TrainingDay({
                             step={5}
                           />
                         </label>
+                        <label>
+                          Posição no treino
+                          <select
+                            value={cardioDraft.placement}
+                            onChange={(e) => handleCardioChange(block.id, "placement", e.target.value as CardioPlacement)}
+                          >
+                            <option value="before">Antes da musculação</option>
+                            <option value="between" disabled={plan.pm.length < 2}>Entre exercícios</option>
+                            <option value="after">Depois da musculação</option>
+                          </select>
+                        </label>
+                        {cardioDraft.placement === "between" && plan.pm.length > 0 && (
+                          <label>
+                            Inserir depois de
+                            <select
+                              value={cardioDraft.afterExerciseId}
+                              onChange={(e) => handleCardioChange(block.id, "afterExerciseId", e.target.value)}
+                            >
+                              <option value="" disabled>Escolha um exercício</option>
+                              {plan.pm.map((exercise) => (
+                                <option key={exercise.id} value={exercise.id}>{exercise.name}</option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
                       </div>
                       <div className="training-day__formActions">
                         <button type="submit">Salvar alterações</button>
@@ -348,7 +391,7 @@ export function TrainingDay({
           )}
         </div>
         <div>
-          <strong>Parte 2 · Musculação</strong>
+          <strong>Exercícios de musculação</strong>
           {plan.pm.length === 0 ? (
             <p className="training-day__empty">Sem exercícios cadastrados.</p>
           ) : (
@@ -531,6 +574,19 @@ export function TrainingDay({
   );
 }
 
+function formatCardioPlacement(
+  block: CardioBlock,
+  exercises: TrainingTemplate[Split]["pm"],
+) {
+  const placement = block.placement ?? "before";
+  if (placement === "after") return "Depois da musculação";
+  if (placement === "between") {
+    const exercise = exercises.find((item) => item.id === block.afterExerciseId);
+    return exercise ? `Depois de ${exercise.name}` : "Entre exercícios";
+  }
+  return "Antes da musculação";
+}
+
 const style = new CSSStyleSheet();
 style.replaceSync(`
 .training-day {
@@ -606,6 +662,13 @@ style.replaceSync(`
 }
 .training-day__cardioTitle {
   font-weight: 600;
+}
+.training-day__cardioTitle small {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 500;
 }
 .training-day__empty {
   color: #94a3b8;

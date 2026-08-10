@@ -25,6 +25,8 @@ const SharedWorkoutSchema = z.object({
       z.object({
         kind: z.string().trim().min(1).max(100),
         minutes: z.number().int().min(1).max(1440),
+        placement: z.enum(["before", "between", "after"]).optional(),
+        afterExerciseIndex: z.number().int().min(0).optional(),
       }),
     )
     .max(30),
@@ -56,7 +58,15 @@ export function createSharedTrainingPlan(
     exportedAt: new Date().toISOString(),
     workouts: getActiveSplits(preferences.trainingDays).map((split) => ({
       label: preferences.splitLabels[split]?.trim() || `Treino ${split}`,
-      cardio: template[split].am.map(({ kind, minutes }) => ({ kind, minutes })),
+      cardio: template[split].am.map(({ kind, minutes, placement, afterExerciseId }) => ({
+        kind,
+        minutes,
+        placement: placement ?? "before",
+        afterExerciseIndex:
+          placement === "between" && afterExerciseId
+            ? resolveAfterExerciseIndex(template[split].pm, afterExerciseId)
+            : undefined,
+      })),
       exercises: template[split].pm.map((exercise) => {
         const catalogItem = exercise.catalogId ? catalogById.get(exercise.catalogId) : undefined;
         return {
@@ -91,4 +101,12 @@ export function sharedPlanFilename(title: string) {
     .replace(/^-|-$/g, "")
     .toLowerCase();
   return `${safeTitle || "meu-treino"}.fitapp.json`;
+}
+
+function resolveAfterExerciseIndex(
+  exercises: TrainingTemplate[keyof TrainingTemplate]["pm"],
+  exerciseId: string,
+) {
+  const index = exercises.findIndex((exercise) => exercise.id === exerciseId);
+  return index >= 0 ? index : undefined;
 }

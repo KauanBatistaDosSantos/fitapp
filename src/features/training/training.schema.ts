@@ -7,10 +7,19 @@ export type Split = z.infer<typeof Split>;
 export const CardioKind = z.string();
 export type CardioKind = z.infer<typeof CardioKind>;
 
+export const CardioPlacement = z.enum(["before", "between", "after"]);
+export type CardioPlacement = z.infer<typeof CardioPlacement>;
+
 export const EquipmentType = z.enum(["machine", "barbell", "dumbbell", "other"]);
 export type EquipmentType = z.infer<typeof EquipmentType>;
 
-export const CardioBlock = z.object({ id: z.string(), kind: CardioKind, minutes: z.number() });
+export const CardioBlock = z.object({
+  id: z.string(),
+  kind: CardioKind,
+  minutes: z.number(),
+  placement: CardioPlacement.optional(),
+  afterExerciseId: z.string().optional(),
+});
 export type CardioBlock = z.infer<typeof CardioBlock>;
 
 export const Exercise = z.object({

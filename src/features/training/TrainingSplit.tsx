@@ -94,31 +94,41 @@ export function TrainingSplit({
   );
 
   const exercises = useMemo(() => {
-    const items = [...plan.pm];
-    return items.sort((a, b) => {
-      const doneA = log?.doneExercises.includes(a.id) ?? false;
-      const doneB = log?.doneExercises.includes(b.id) ?? false;
-      if (doneA === doneB) return 0;
-      return doneA ? 1 : -1;
-    });
-  }, [plan.pm, log?.doneExercises]);
+    return [...plan.pm];
+  }, [plan.pm]);
 
   const combinedItems: CombinedItem[] = useMemo(() => {
-    const cardioItems: CombinedItem[] = plan.am.map((block) => ({
+    const toCardioItem = (block: TrainingTemplate[Split]["am"][number]): CombinedItem => ({
       kind: "cardio",
       id: block.id,
       label: block.kind,
-      detail: `${block.minutes} min`,
+      detail: `${block.minutes} min · ${describeCardioPlacement(block, plan.pm)}`,
       done: log?.completedCardio.includes(block.id) ?? false,
-    }));
-    const exerciseItems: CombinedItem[] = exercises.map((exercise) => ({
+    });
+    const toExerciseItem = (exercise: Exercise): CombinedItem => ({
       kind: "exercise",
       exercise,
       done: log?.doneExercises.includes(exercise.id) ?? false,
       setsCompleted: log?.setProgress[exercise.id] ?? (log?.doneExercises.includes(exercise.id) ? exercise.sets : 0),
-    }));
-    return [...cardioItems, ...exerciseItems];
-  }, [plan.am, exercises, log?.completedCardio, log?.doneExercises, log?.setProgress]);
+    });
+
+    const before = plan.am.filter((block) => (block.placement ?? "before") === "before");
+    const after = plan.am.filter((block) => block.placement === "after");
+    const between = plan.am.filter((block) => block.placement === "between");
+    const anchoredIds = new Set(plan.pm.map((exercise) => exercise.id));
+    const orphaned = between.filter((block) => !block.afterExerciseId || !anchoredIds.has(block.afterExerciseId));
+    const items: CombinedItem[] = before.map(toCardioItem);
+
+    plan.pm.forEach((exercise) => {
+      items.push(toExerciseItem(exercise));
+      between
+        .filter((block) => block.afterExerciseId === exercise.id)
+        .forEach((block) => items.push(toCardioItem(block)));
+    });
+    after.forEach((block) => items.push(toCardioItem(block)));
+    orphaned.forEach((block) => items.push(toCardioItem(block)));
+    return items;
+  }, [plan.am, plan.pm, log?.completedCardio, log?.doneExercises, log?.setProgress]);
 
   const detailExercise = useMemo(() => {
     if (!detailState) return undefined;
@@ -128,6 +138,7 @@ export function TrainingSplit({
   const detailCatalog = detailExercise?.catalogId ? catalogById[detailExercise.catalogId] : undefined;
   const rawLabel = preferences.splitLabels?.[split] ?? defaultSplitLabels[split] ?? "";
   const splitLabel = rawLabel.trim();
+  const hasSequencedCardio = plan.am.some((block) => (block.placement ?? "before") !== "before");
   const transitionIsActive = transitionTimer.phase === "resting" || transitionTimer.phase === "rest-paused";
   const persistedTransitionTarget = transitionTimer.context?.targetExerciseId
     ? plan.pm.find((exercise) => exercise.id === transitionTimer.context?.targetExerciseId)
@@ -146,15 +157,21 @@ export function TrainingSplit({
     : transitionTimer.context?.durationSec ?? 90;
 
   const handleExerciseCompleted = (exerciseId: string) => {
-    const currentIndex = plan.pm.findIndex((exercise) => exercise.id === exerciseId);
-    const orderedCandidates = currentIndex >= 0
-      ? [...plan.pm.slice(currentIndex + 1), ...plan.pm.slice(0, currentIndex)]
-      : plan.pm;
-    const nextExercise = orderedCandidates.find((exercise) => {
-      if (exercise.id === exerciseId) return false;
-      const completed = log?.setProgress[exercise.id] ?? 0;
-      return completed < exercise.sets && !log?.doneExercises.includes(exercise.id);
-    });
+    const currentIndex = combinedItems.findIndex(
+      (item) => item.kind === "exercise" && item.exercise.id === exerciseId,
+    );
+    const remainingItems = currentIndex >= 0
+      ? [...combinedItems.slice(currentIndex + 1), ...combinedItems.slice(0, currentIndex)]
+      : combinedItems;
+    const nextPendingItem = remainingItems.find((item) => !item.done);
+    if (nextPendingItem?.kind === "cardio") {
+      transitionTimer.clearTimer();
+      setExerciseTransition(null);
+      return;
+    }
+    const nextExercise = nextPendingItem?.kind === "exercise"
+      ? nextPendingItem.exercise
+      : undefined;
     if (!nextExercise) {
       transitionTimer.clearTimer();
       setExerciseTransition(null);
@@ -201,7 +218,7 @@ export function TrainingSplit({
             {splitLabel ? ` · ${splitLabel}` : ""}          </h3>
           <p>
             {plan.am.length > 0 && plan.pm.length > 0
-              ? "Cardio pela manhã · Musculação à tarde"
+              ? "Cardio e musculação na sequência configurada"
               : plan.am.length > 0
               ? "Cardio"
               : plan.pm.length > 0
@@ -248,8 +265,21 @@ export function TrainingSplit({
         </div>
       )}
 
-      {preferences.mergeParts ? (
+      {preferences.mergeParts || hasSequencedCardio ? (
         <div className="training-split__combined">
+          {hasSequencedCardio && !preferences.mergeParts && (
+            <div className="training-split__sequenceHeader">
+              <strong>Sequência configurada</strong>
+              <div>
+                <button type="button" onClick={() => onTogglePart(split, "am")}>
+                  {log?.amDone ? "Reabrir cardios" : "Concluir cardios"}
+                </button>
+                <button type="button" onClick={() => onTogglePart(split, "pm")}>
+                  {log?.pmDone ? "Reabrir musculação" : "Concluir musculação"}
+                </button>
+              </div>
+            </div>
+          )}
           {combinedItems.length === 0 && (
             <p className="training-split__empty">Nenhum bloco cadastrado para este dia.</p>
           )}
@@ -287,7 +317,7 @@ export function TrainingSplit({
           {plan.am.length > 0 && (
             <div className="training-split__block">
               <div className="training-split__blockHeader">
-                <strong>{plan.pm.length > 0 ? "Parte 1 · Cardio" : "Cardio"}</strong>
+                <strong>{plan.pm.length > 0 ? "Cardios antes da musculação" : "Cardio"}</strong>
                 <button type="button" onClick={() => onTogglePart(split, "am")}>
                   {log?.amDone ? "Reabrir" : "Concluir parte"}
                 </button>
@@ -310,7 +340,7 @@ export function TrainingSplit({
           {plan.pm.length > 0 && (
             <div className="training-split__block">
               <div className="training-split__blockHeader">
-                <strong>{plan.am.length > 0 ? "Parte 2 · Musculação" : "Musculação"}</strong>
+                <strong>Musculação</strong>
                 <button type="button" onClick={() => onTogglePart(split, "pm")}>
                   {log?.pmDone ? "Reabrir" : "Concluir parte"}
                 </button>
@@ -813,6 +843,19 @@ function resolveMuscles(exercise: Exercise, info?: ExerciseCatalogItem) {
   return Array.from(muscles);
 }
 
+function describeCardioPlacement(
+  block: TrainingTemplate[Split]["am"][number],
+  exercises: Exercise[],
+) {
+  const placement = block.placement ?? "before";
+  if (placement === "after") return "depois da musculação";
+  if (placement === "between") {
+    const anchor = exercises.find((exercise) => exercise.id === block.afterExerciseId);
+    return anchor ? `depois de ${anchor.name}` : "entre exercícios";
+  }
+  return "antes da musculação";
+}
+
 const style = new CSSStyleSheet();
 style.replaceSync(`
 .training-split {
@@ -1127,6 +1170,21 @@ style.replaceSync(`
   flex-direction: column;
   gap: 12px;
 }
+.training-split__sequenceHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.72);
+}
+.training-split__sequenceHeader > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .training-split__empty {
   color: #94a3b8;
 }
@@ -1341,6 +1399,16 @@ style.replaceSync(`
   .training-split__transitionActions button {
     width: 100%;
     justify-content: center;
+  }
+  .training-split__sequenceHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .training-split__sequenceHeader > div {
+    flex-direction: column;
+  }
+  .training-split__sequenceHeader button {
+    width: 100%;
   }
   .training-detail__formRow {
     flex-direction: column;

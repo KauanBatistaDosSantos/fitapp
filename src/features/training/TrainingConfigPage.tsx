@@ -5,7 +5,7 @@ import { Section } from "@/components/Section";
 import { defaultSplitLabels, useTraining } from "./training.store";
 import { getActiveSplits, splitOrder } from "./training.service";
 import { normalizeExerciseName, parseExerciseText } from "./training.import";
-import type { Split } from "./training.schema";
+import type { CardioPlacement, Split } from "./training.schema";
 import { TrainingDay } from "./TrainingDay";
 import {
   createSharedTrainingPlan,
@@ -54,6 +54,8 @@ export default function TrainingConfigPage() {
   const [selectedSplit, setSelectedSplit] = useState<Split>("A");
   const [cardioKind, setCardioKind] = useState(cardioCatalog[0]?.kind ?? "");
   const [cardioMinutes, setCardioMinutes] = useState("30");
+  const [cardioPlacement, setCardioPlacement] = useState<CardioPlacement>("before");
+  const [cardioAfterExerciseId, setCardioAfterExerciseId] = useState("");
   const [exerciseId, setExerciseId] = useState(catalog[0]?.id ?? "");
   const [sets, setSets] = useState("4");
   const [reps, setReps] = useState("12");
@@ -69,6 +71,10 @@ export default function TrainingConfigPage() {
   const activeSplits = useMemo(
     () => getActiveSplits(preferences.trainingDays),
     [preferences.trainingDays],
+  );
+  const cardioAnchorOptions = useMemo(
+    () => template[selectedSplit].pm.slice(0, -1),
+    [selectedSplit, template],
   );
   const parsedExercises = useMemo(
     () => parseExerciseText(bulkExerciseText),
@@ -146,6 +152,18 @@ export default function TrainingConfigPage() {
       setSelectedSplit(activeSplits[0]);
     }
   }, [activeSplits, selectedSplit]);
+
+  useEffect(() => {
+    if (cardioPlacement !== "between") return;
+    if (cardioAnchorOptions.length === 0) {
+      setCardioPlacement("before");
+      setCardioAfterExerciseId("");
+      return;
+    }
+    if (!cardioAnchorOptions.some((exercise) => exercise.id === cardioAfterExerciseId)) {
+      setCardioAfterExerciseId(cardioAnchorOptions[0].id);
+    }
+  }, [cardioAfterExerciseId, cardioAnchorOptions, cardioPlacement]);
 
   const muscleOptions = useMemo(() => {
     const set = new Set<string>();
@@ -226,7 +244,13 @@ export default function TrainingConfigPage() {
   const handleAddCardioBlock = (evt: FormEvent) => {
     evt.preventDefault();
     if (!cardioKind) return;
-    addAmBlock(selectedSplit, cardioKind, Number(cardioMinutes) || 20);
+    addAmBlock(
+      selectedSplit,
+      cardioKind,
+      Number(cardioMinutes) || 20,
+      cardioPlacement,
+      cardioPlacement === "between" ? cardioAfterExerciseId : undefined,
+    );
     setCardioMinutes("30");
   };
 
@@ -739,7 +763,7 @@ export default function TrainingConfigPage() {
       )}
 
       {activeConfigTab === "builder" && (
-      <Section title="Montar divisão" description="Selecione o treino e inclua blocos para as duas partes do dia.">
+      <Section title="Montar divisão" description="Escolha a ordem dos exercícios e onde cada cardio entra na sequência.">
         <div className="training-config__grid training-config__grid--assign">
           <label>
             Divisão
@@ -770,8 +794,32 @@ export default function TrainingConfigPage() {
               Duração (minutos)
               <input value={cardioMinutes} onChange={(e) => setCardioMinutes(e.target.value)} type="number" min={5} step={5} />
             </label>
+            <label>
+              Posição no treino
+              <select
+                value={cardioPlacement}
+                onChange={(e) => setCardioPlacement(e.target.value as CardioPlacement)}
+              >
+                <option value="before">Antes da musculação</option>
+                <option value="between" disabled={cardioAnchorOptions.length === 0}>Entre exercícios</option>
+                <option value="after">Depois da musculação</option>
+              </select>
+            </label>
+            {cardioPlacement === "between" && cardioAnchorOptions.length > 0 && (
+              <label>
+                Inserir depois de
+                <select
+                  value={cardioAfterExerciseId}
+                  onChange={(e) => setCardioAfterExerciseId(e.target.value)}
+                >
+                  {cardioAnchorOptions.map((exercise) => (
+                    <option key={exercise.id} value={exercise.id}>{exercise.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <button type="submit" disabled={!cardioKind}>
-              Adicionar bloco AM
+              Adicionar cardio
             </button>
           </form>
           <form className="training-config__subform" onSubmit={handleAddPmExercise}>
@@ -802,7 +850,7 @@ export default function TrainingConfigPage() {
               <input value={rest} onChange={(e) => setRest(e.target.value)} type="number" min={30} step={15} />
             </label>
             <button type="submit" disabled={!exerciseId}>
-              Adicionar bloco PM
+              Adicionar exercício
             </button>
           </form>
         </div>
