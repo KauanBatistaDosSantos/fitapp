@@ -81,7 +81,10 @@ export function TrainingSplit({
   const progress = sessionProgress(plan, log);
   const [detailState, setDetailState] = useState<DetailState | null>(null);
   const [exerciseTransition, setExerciseTransition] = useState<ExerciseTransitionState | null>(null);
-  const transitionTimer = useExerciseTimer(`between-exercises:${split}`);
+  const transitionTimer = useExerciseTimer(
+    `between-exercises:${split}`,
+    preferences.exerciseRestSound ? "exercise" : null,
+  );
   const exerciseElements = useRef(new Map<string, HTMLDivElement>());
 
   const catalogById = useMemo(
@@ -300,6 +303,7 @@ export function TrainingSplit({
                 setsCompleted={item.setsCompleted}
                 catalogInfo={catalogById[item.exercise.catalogId ?? ""]}
                 displayFormat={preferences.displayFormat}
+                restSoundEnabled={preferences.seriesRestSound}
                 onOpenDetails={() => setDetailState(createDetailState(item.exercise))}
                 onSetProgress={(sets) => onSetSetProgress(split, item.exercise.id, sets)}
                 onExerciseCompleted={() => handleExerciseCompleted(item.exercise.id)}
@@ -354,6 +358,7 @@ export function TrainingSplit({
                       setsCompleted={log?.setProgress[exercise.id] ?? (log?.doneExercises.includes(exercise.id) ? exercise.sets : 0)}
                       catalogInfo={catalogById[exercise.catalogId ?? ""]}
                       displayFormat={preferences.displayFormat}
+                      restSoundEnabled={preferences.seriesRestSound}
                       onOpenDetails={() => setDetailState(createDetailState(exercise))}
                       onSetProgress={(sets) => onSetSetProgress(split, exercise.id, sets)}
                       onExerciseCompleted={() => handleExerciseCompleted(exercise.id)}
@@ -452,6 +457,7 @@ type ExerciseItemProps = {
   setsCompleted: number;
   catalogInfo?: ExerciseCatalogItem;
   displayFormat: TrainingPreferences["displayFormat"];
+  restSoundEnabled: boolean;
   onOpenDetails: () => void;
   onSetProgress: (sets: number) => void;
   onExerciseCompleted: () => void;
@@ -465,6 +471,7 @@ function ExerciseItem({
   setsCompleted,
   catalogInfo,
   displayFormat,
+  restSoundEnabled,
   onOpenDetails,
   onSetProgress,
   onExerciseCompleted,
@@ -475,7 +482,7 @@ function ExerciseItem({
   const muscles = resolveMuscles(exercise, catalogInfo);
   const mediaUrls = resolveExerciseMedia(exercise, catalogInfo);
   const [showControls, setShowControls] = useState(() => setsCompleted > 0);
-  const timer = useExerciseTimer(exercise.id);
+  const timer = useExerciseTimer(exercise.id, restSoundEnabled ? "series" : null);
   const timerPhase = timer.phase;
   const clearExerciseTimer = timer.clearTimer;
 
@@ -1233,6 +1240,9 @@ style.replaceSync(`
   font-weight: 700;
 }
 .training-split__transition {
+  position: sticky;
+  top: calc(76px + env(safe-area-inset-top, 0px));
+  z-index: 8;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1241,6 +1251,8 @@ style.replaceSync(`
   border: 1px solid rgba(37, 99, 235, 0.35);
   border-radius: 16px;
   background: rgba(219, 234, 254, 0.72);
+  box-shadow: 0 18px 36px -24px rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(14px);
 }
 .training-split__transitionInfo {
   display: grid;

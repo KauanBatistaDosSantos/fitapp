@@ -31,6 +31,8 @@ export type CardioCatalogItem = { id: string; kind: CardioKind };
 export type TrainingPreferences = {
   displayFormat: "inline" | "stacked";
   mergeParts: boolean;
+  seriesRestSound: boolean;
+  exerciseRestSound: boolean;
   activeSplit: Split;
   splitLabels: Record<Split, string>;
   trainingDays: number;
@@ -113,6 +115,8 @@ const emptyTemplate: TrainingTemplate = {
 const defaultPreferences: TrainingPreferences = {
   displayFormat: "inline",
   mergeParts: true,
+  seriesRestSound: false,
+  exerciseRestSound: false,
   activeSplit: "A",
   splitLabels: defaultSplitLabels,
   trainingDays: 5,
@@ -213,6 +217,8 @@ const preferencesFallback = () => {
 
   const loaded = load<TrainingPreferences>("tr:prefs", fallback);
   loaded.trainingDays = Math.min(7, Math.max(2, Math.round(loaded.trainingDays ?? fallback.trainingDays)));
+  loaded.seriesRestSound = loaded.seriesRestSound ?? fallback.seriesRestSound;
+  loaded.exerciseRestSound = loaded.exerciseRestSound ?? fallback.exerciseRestSound;
   const activeSplits = getActiveSplits(loaded.trainingDays);
   if (!activeSplits.includes(loaded.activeSplit)) {
     loaded.activeSplit = fallback.activeSplit;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { isoDate } from "@/lib/date";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -22,22 +22,19 @@ export default function DietPage() {
     }
   }, [day, regenerateDayFromWeekly, selectedDateISO]);
 
+  const selectedDate = new Date(`${selectedDateISO}T00:00:00`);
+  const formattedDate = selectedDate.toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+  });
+
   if (!day) {
     return null;
   }
 
   const progress = computeDietProgress(day);
   const allMealsDone = progress.totalMeals > 0 && progress.completedMeals === progress.totalMeals;
-  const selectedDate = useMemo(() => new Date(`${selectedDateISO}T00:00:00`), [selectedDateISO]);
-  const formattedDate = useMemo(
-    () =>
-      selectedDate.toLocaleDateString("pt-BR", {
-        weekday: "long",
-        day: "2-digit",
-        month: "2-digit",
-      }),
-    [selectedDateISO],
-  );
   const formattedLabel = formattedDate.replace(/^./, (char) => char.toUpperCase());
   const isToday = selectedDateISO === isoDate();
 

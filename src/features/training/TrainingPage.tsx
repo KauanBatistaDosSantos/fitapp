@@ -13,6 +13,7 @@ import {
   trainingProgress,
 } from "./training.service";
 import { TrainingSplit } from "./TrainingSplit";
+import { playTrainingRestSound } from "./training.audio";
 import type { Split } from "./training.schema";
 
 export default function TrainingPage() {
@@ -248,6 +249,38 @@ export default function TrainingPage() {
                 />
                 Unir cardio e musculação em uma lista
               </label>
+              <fieldset className="training-preferences__sounds">
+                <legend>Alertas sonoros</legend>
+                <p>Escolha quando o app deve avisar que o descanso terminou.</p>
+                <label className="training-preferences__soundOption">
+                  <input
+                    type="checkbox"
+                    checked={preferences.seriesRestSound}
+                    onChange={(event) => {
+                      setPreferences({ seriesRestSound: event.target.checked });
+                      if (event.target.checked) playTrainingRestSound("series");
+                    }}
+                  />
+                  <span>
+                    <strong>Fim do descanso entre séries</strong>
+                    <small>Dois toques curtos para iniciar a próxima série.</small>
+                  </span>
+                </label>
+                <label className="training-preferences__soundOption">
+                  <input
+                    type="checkbox"
+                    checked={preferences.exerciseRestSound}
+                    onChange={(event) => {
+                      setPreferences({ exerciseRestSound: event.target.checked });
+                      if (event.target.checked) playTrainingRestSound("exercise");
+                    }}
+                  />
+                  <span>
+                    <strong>Fim do descanso entre exercícios</strong>
+                    <small>Um aviso crescente para seguir ao próximo exercício.</small>
+                  </span>
+                </label>
+              </fieldset>
             </div>
             <Link to="/training/config" className="training-actions__config training-settings__link">
               Abrir biblioteca de exercícios
@@ -564,6 +597,49 @@ style.replaceSync(`
   align-items: center;
   font-size: 0.9rem;
   color: #475569;
+  font-weight: 500;
+}
+.training-preferences__sounds {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding-top: 4px;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+.training-preferences__sounds legend {
+  padding-top: 14px;
+  margin-bottom: 2px;
+}
+.training-preferences__sounds > p {
+  margin: 0 0 2px;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+.training-preferences .training-preferences__soundOption {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+}
+.training-preferences__soundOption input {
+  width: auto;
+  margin-top: 3px;
+  accent-color: #2563eb;
+}
+.training-preferences__soundOption span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.training-preferences__soundOption small {
+  color: #64748b;
   font-weight: 500;
 }
 .training-settings__link {

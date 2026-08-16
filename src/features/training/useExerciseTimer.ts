@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { playTrainingRestSound, primeTrainingAudio, type TrainingRestSound } from "./training.audio";
 
 type ExerciseTimerPhase = "working" | "work-paused" | "resting" | "rest-paused";
 
@@ -26,7 +27,7 @@ const storageKey = "tr:exerciseTimers:v1";
 const timerSyncEvent = "fitapp:exercise-timer-sync";
 const maximumSessionAgeMs = 12 * 60 * 60 * 1000;
 
-export function useExerciseTimer(exerciseId: string) {
+export function useExerciseTimer(exerciseId: string, completionSound?: TrainingRestSound | null) {
   const [session, setSession] = useState<ExerciseTimerSession | null>(() =>
     readSession(exerciseId),
   );
@@ -74,9 +75,11 @@ export function useExerciseTimer(exerciseId: string) {
 
   useEffect(() => {
     if (session?.phase === "resting" && restRemainingSec <= 0) {
-      updateSession(null);
+      const shouldPlaySound = clearSessionIfCurrent(exerciseId, session);
+      if (!shouldPlaySound) setSession(null);
+      if (shouldPlaySound && completionSound) playTrainingRestSound(completionSound);
     }
-  }, [restRemainingSec, session?.phase, updateSession]);
+  }, [completionSound, exerciseId, restRemainingSec, session]);
 
   const startSeries = () =>
     updateSession({
@@ -109,13 +112,15 @@ export function useExerciseTimer(exerciseId: string) {
       seriesElapsedSec: 0,
     });
 
-  const startRest = (seconds: number, context?: ExerciseTimerSession["context"]) =>
+  const startRest = (seconds: number, context?: ExerciseTimerSession["context"]) => {
+    if (completionSound) primeTrainingAudio();
     updateSession({
       phase: "resting",
       updatedAt: Date.now(),
       restEndsAt: Date.now() + Math.max(0, seconds) * 1000,
       context,
     });
+  };
 
   const pauseRest = () =>
     updateSession({
@@ -191,4 +196,14 @@ function writeSession(exerciseId: string, session: ExerciseTimerSession | null) 
   } catch {
     // O treino continua funcionando mesmo se o armazenamento estiver indisponível.
   }
+}
+
+function clearSessionIfCurrent(exerciseId: string, completedSession: ExerciseTimerSession) {
+  const currentSession = readTimerStore()[exerciseId];
+  if (
+    currentSession?.phase !== "resting"
+    || currentSession.updatedAt !== completedSession.updatedAt
+  ) return false;
+  writeSession(exerciseId, null);
+  return true;
 }

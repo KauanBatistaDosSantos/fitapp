@@ -206,6 +206,7 @@ html[data-theme="dark"] .app-shell :is(
   .training-split__detailButton,
   .training-detail__card,
   .training-preferences,
+  .training-preferences__soundOption,
   .training-timeline__item,
   .training-config__tabsBar,
   .training-config__organizerItem,
@@ -270,6 +271,72 @@ html[data-theme="dark"] .app-shell :is(
 
 html[data-theme="dark"] .app-shell :is(button, button *, .training-immersive__footer, .training-immersive__footer *) {
   color: #f8fafc;
+}
+
+html[data-theme="dark"] .app-shell .diet-day__meal--breakfast {
+  background: rgba(239, 68, 68, 0.14) !important;
+}
+
+html[data-theme="dark"] .app-shell .diet-day__meal--snack1 {
+  background: rgba(245, 158, 11, 0.15) !important;
+}
+
+html[data-theme="dark"] .app-shell .diet-day__meal--lunch {
+  background: rgba(34, 197, 94, 0.13) !important;
+}
+
+html[data-theme="dark"] .app-shell .diet-day__meal--snack2 {
+  background: rgba(139, 92, 246, 0.15) !important;
+}
+
+html[data-theme="dark"] .app-shell .diet-day__meal--dinner {
+  background: rgba(14, 165, 233, 0.14) !important;
+}
+
+html[data-theme="dark"] .app-shell .diet-day__mealHeader {
+  background: var(--surface-raised) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .app-shell :is(.diet-controls__nav, .diet-controls__today) {
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .app-shell :is(.diet-controls__nav, .diet-controls__today):disabled {
+  background: rgba(51, 65, 85, 0.7) !important;
+  color: var(--text-faint) !important;
+}
+
+html[data-theme="dark"] .app-shell .progress__label {
+  color: var(--text-soft) !important;
+}
+
+html[data-theme="dark"] .app-shell .diet-day__mealIcon {
+  background: rgba(148, 163, 184, 0.12) !important;
+}
+
+html[data-theme="dark"] .app-shell :is(.diet-day__mealCount, .diet-item__subtitle) {
+  color: var(--text-soft) !important;
+}
+
+html[data-theme="dark"] .app-shell :is(
+  .diet-day__mealEmpty,
+  .diet-day__chevron,
+  .diet-item__notes
+) {
+  color: var(--text-faint) !important;
+}
+
+html[data-theme="dark"] .app-shell .diet-day__mealStatus {
+  background: rgba(22, 101, 52, 0.35) !important;
+  border-color: rgba(74, 222, 128, 0.4) !important;
+  color: #86efac !important;
+}
+
+html[data-theme="dark"] .app-shell .diet-item__checkbox {
+  color: #93c5fd !important;
 }
 
 html[data-theme="dark"] .app-shell :is(input, select, textarea) {
