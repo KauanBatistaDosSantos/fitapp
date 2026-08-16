@@ -63,6 +63,7 @@ export default function TrainingConfigPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draggingSplit, setDraggingSplit] = useState<Split | null>(null);
   const [activeConfigTab, setActiveConfigTab] = useState<"organize" | "builder" | "library" | "share">("organize");
+  const [activeAddTab, setActiveAddTab] = useState<"exercise" | "cardio">("exercise");
   const [shareTitle, setShareTitle] = useState("Meu treino");
   const [shareMessage, setShareMessage] = useState("");
   const [pendingSharedPlan, setPendingSharedPlan] = useState<SharedTrainingPlan | null>(null);
@@ -76,6 +77,8 @@ export default function TrainingConfigPage() {
     () => template[selectedSplit].pm.slice(0, -1),
     [selectedSplit, template],
   );
+  const selectedPlan = template[selectedSplit];
+  const selectedSplitLabel = preferences.splitLabels[selectedSplit] ?? defaultSplitLabels[selectedSplit];
   const parsedExercises = useMemo(
     () => parseExerciseText(bulkExerciseText),
     [bulkExerciseText],
@@ -126,6 +129,11 @@ export default function TrainingConfigPage() {
         ? selectedDestination
         : activeSplits[0],
     );
+  };
+
+  const handleSelectAdjacentSplit = (direction: -1 | 1) => {
+    const nextSplit = activeSplits[activeSplits.indexOf(selectedSplit) + direction];
+    if (nextSplit) setSelectedSplit(nextSplit);
   };
 
   useEffect(() => {
@@ -764,115 +772,223 @@ export default function TrainingConfigPage() {
 
       {activeConfigTab === "builder" && (
       <Section title="Montar divisão" description="Escolha a ordem dos exercícios e onde cada cardio entra na sequência.">
-        <div className="training-config__grid training-config__grid--assign">
-          <label>
-            Divisão
-            <select value={selectedSplit} onChange={(e) => setSelectedSplit(e.target.value as Split)}>
-              {activeSplits.map((split) => (
-                <option key={split} value={split}>
-                  Treino {split}
-                </option>
-              ))}
-            </select>
-          </label>
-          <form className="training-config__subform" onSubmit={handleAddCardioBlock}>
-                        <h4>Adicionar cardio</h4>
-            <label>
-              Tipo de cardio
-              <select value={cardioKind} onChange={(e) => setCardioKind(e.target.value)}>
-                <option value="" disabled>
-                  Selecione uma opção
-                </option>
-                {cardioCatalog.map((item) => (
-                  <option key={item.id} value={item.kind}>
-                    {item.kind}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Duração (minutos)
-              <input value={cardioMinutes} onChange={(e) => setCardioMinutes(e.target.value)} type="number" min={5} step={5} />
-            </label>
-            <label>
-              Posição no treino
-              <select
-                value={cardioPlacement}
-                onChange={(e) => setCardioPlacement(e.target.value as CardioPlacement)}
-              >
-                <option value="before">Antes da musculação</option>
-                <option value="between" disabled={cardioAnchorOptions.length === 0}>Entre exercícios</option>
-                <option value="after">Depois da musculação</option>
-              </select>
-            </label>
-            {cardioPlacement === "between" && cardioAnchorOptions.length > 0 && (
-              <label>
-                Inserir depois de
-                <select
-                  value={cardioAfterExerciseId}
-                  onChange={(e) => setCardioAfterExerciseId(e.target.value)}
+        <div className="training-config__builderSelector">
+          <div className="training-config__builderSelectorHeader">
+            <div>
+              <span>ESCOLHA O TREINO PARA EDITAR</span>
+              <strong>Treino {selectedSplit} · {selectedSplitLabel}</strong>
+            </div>
+            <small>
+              {selectedPlan.pm.length} {selectedPlan.pm.length === 1 ? "exercício" : "exercícios"}
+              {selectedPlan.am.length > 0
+                ? ` · ${selectedPlan.am.length} ${selectedPlan.am.length === 1 ? "cardio" : "cardios"}`
+                : " · sem cardio"}
+            </small>
+          </div>
+          <div className="training-config__builderDays" role="tablist" aria-label="Treinos da divisão">
+            {activeSplits.map((split) => {
+              const label = preferences.splitLabels[split] ?? defaultSplitLabels[split];
+              return (
+                <button
+                  key={split}
+                  type="button"
+                  role="tab"
+                  aria-selected={selectedSplit === split}
+                  aria-controls="training-config-selected-day"
+                  className={`training-config__builderDay ${
+                    selectedSplit === split ? "training-config__builderDay--active" : ""
+                  }`}
+                  onClick={() => setSelectedSplit(split)}
                 >
-                  {cardioAnchorOptions.map((exercise) => (
-                    <option key={exercise.id} value={exercise.id}>{exercise.name}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <button type="submit" disabled={!cardioKind}>
-              Adicionar cardio
-            </button>
-          </form>
-          <form className="training-config__subform" onSubmit={handleAddPmExercise}>
-            <h4>Adicionar exercício</h4>
-            <label>
-              Exercício
-              <select value={exerciseId} onChange={(e) => handleExerciseSelection(e.target.value)}>
-                <option value="" disabled>
-                  Selecione um exercício
-                </option>
-                {catalog.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
+                  <span>Treino {split}</span>
+                  <strong>{label?.trim() || "Sem nome"}</strong>
+                  <small>{template[split].pm.length} ex.</small>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="training-config__addComposer">
+          <div className="training-config__addHeader">
+            <div>
+              <span>ADICIONAR ITEM</span>
+              <h3>Novo item no treino {selectedSplit}</h3>
+              <p>Escolha o tipo, ajuste os detalhes e adicione à sequência.</p>
+            </div>
+            <label className="training-config__addDestination">
+              Destino
+              <select value={selectedSplit} onChange={(e) => setSelectedSplit(e.target.value as Split)}>
+                {activeSplits.map((split) => (
+                  <option key={split} value={split}>
+                    Treino {split} · {preferences.splitLabels[split] ?? defaultSplitLabels[split]}
                   </option>
                 ))}
               </select>
             </label>
-            <label>
-              Séries
-              <input value={sets} onChange={(e) => setSets(e.target.value)} type="number" min={1} max={10} />
-            </label>
-            <label>
-              Repetições
-              <input value={reps} onChange={(e) => setReps(e.target.value)} placeholder="12" />
-            </label>
-            <label>
-              Descanso (segundos)
-              <input value={rest} onChange={(e) => setRest(e.target.value)} type="number" min={30} step={15} />
-            </label>
-            <button type="submit" disabled={!exerciseId}>
-              Adicionar exercício
+          </div>
+
+          <div className="training-config__addTabs" role="tablist" aria-label="Tipo de item para adicionar">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeAddTab === "exercise"}
+              aria-controls="training-config-add-exercise"
+              className={activeAddTab === "exercise" ? "training-config__addTab--active" : ""}
+              onClick={() => setActiveAddTab("exercise")}
+            >
+              Musculação
             </button>
-          </form>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeAddTab === "cardio"}
+              aria-controls="training-config-add-cardio"
+              className={activeAddTab === "cardio" ? "training-config__addTab--active" : ""}
+              onClick={() => setActiveAddTab("cardio")}
+            >
+              Cardio
+            </button>
+          </div>
+
+          {activeAddTab === "exercise" ? (
+            <form
+              id="training-config-add-exercise"
+              className="training-config__composerForm"
+              role="tabpanel"
+              onSubmit={handleAddPmExercise}
+            >
+              <div className="training-config__composerFields training-config__composerFields--exercise">
+                <label className="training-config__composerPrimary">
+                  Exercício
+                  <select value={exerciseId} onChange={(e) => handleExerciseSelection(e.target.value)}>
+                    <option value="" disabled>
+                      Selecione um exercício
+                    </option>
+                    {catalog.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Séries
+                  <input value={sets} onChange={(e) => setSets(e.target.value)} type="number" min={1} max={10} />
+                </label>
+                <label>
+                  Repetições
+                  <input value={reps} onChange={(e) => setReps(e.target.value)} placeholder="12" />
+                </label>
+                <label>
+                  Descanso (segundos)
+                  <input value={rest} onChange={(e) => setRest(e.target.value)} type="number" min={30} step={15} />
+                </label>
+              </div>
+              <div className="training-config__composerFooter">
+                <small>O exercício será incluído no final da sequência do treino {selectedSplit}.</small>
+                <button type="submit" disabled={!exerciseId}>
+                  + Adicionar exercício
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form
+              id="training-config-add-cardio"
+              className="training-config__composerForm"
+              role="tabpanel"
+              onSubmit={handleAddCardioBlock}
+            >
+              <div className="training-config__composerFields training-config__composerFields--cardio">
+                <label className="training-config__composerPrimary">
+                  Tipo de cardio
+                  <select value={cardioKind} onChange={(e) => setCardioKind(e.target.value)}>
+                    <option value="" disabled>
+                      Selecione uma opção
+                    </option>
+                    {cardioCatalog.map((item) => (
+                      <option key={item.id} value={item.kind}>
+                        {item.kind}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Duração (minutos)
+                  <input value={cardioMinutes} onChange={(e) => setCardioMinutes(e.target.value)} type="number" min={5} step={5} />
+                </label>
+                <label>
+                  Posição no treino
+                  <select
+                    value={cardioPlacement}
+                    onChange={(e) => setCardioPlacement(e.target.value as CardioPlacement)}
+                  >
+                    <option value="before">Antes da musculação</option>
+                    <option value="between" disabled={cardioAnchorOptions.length === 0}>Entre exercícios</option>
+                    <option value="after">Depois da musculação</option>
+                  </select>
+                </label>
+                {cardioPlacement === "between" && cardioAnchorOptions.length > 0 && (
+                  <label>
+                    Inserir depois de
+                    <select
+                      value={cardioAfterExerciseId}
+                      onChange={(e) => setCardioAfterExerciseId(e.target.value)}
+                    >
+                      {cardioAnchorOptions.map((exercise) => (
+                        <option key={exercise.id} value={exercise.id}>{exercise.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
+              <div className="training-config__composerFooter">
+                <small>A posição escolhida define onde o cardio aparece durante o treino.</small>
+                <button type="submit" disabled={!cardioKind}>
+                  + Adicionar cardio
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
-        <div className="training-config__preview">
-          {activeSplits.map((split) => (
-            <TrainingDay
-              key={split}
-              split={split}
-              splitLabel={preferences.splitLabels[split] ?? defaultSplitLabels[split]}
-              plan={template[split]}
-              availableSplits={activeSplits}
-              catalog={catalog}
-              cardioCatalog={cardioCatalog}
-              onRemoveCardio={(id) => removeAmBlock(split, id)}
-              onUpdateCardio={(id, payload) => updateAmBlock(split, id, payload)}
-              onRemoveExercise={(id) => removePmExercise(split, id)}
-              onUpdateExercise={(id, payload) => updatePmExercise(split, id, payload)}
-              onMoveExercise={(id, direction) => movePmExercise(split, id, direction)}
-              onMoveExerciseToSplit={(id, target) => moveExerciseToSplit(split, target, id)}
-            />
-          ))}
+        <div className="training-config__preview" id="training-config-selected-day" role="tabpanel">
+          <div className="training-config__previewHeader">
+            <div>
+              <strong>Sequência do treino {selectedSplit}</strong>
+              <span>Edite, reordene ou mova os itens abaixo.</span>
+            </div>
+            <div className="training-config__dayNavigation" aria-label="Navegar entre os treinos">
+              <button
+                type="button"
+                disabled={activeSplits.indexOf(selectedSplit) === 0}
+                onClick={() => handleSelectAdjacentSplit(-1)}
+              >
+                ← Anterior
+              </button>
+              <button
+                type="button"
+                disabled={activeSplits.indexOf(selectedSplit) === activeSplits.length - 1}
+                onClick={() => handleSelectAdjacentSplit(1)}
+              >
+                Próximo →
+              </button>
+            </div>
+          </div>
+          <TrainingDay
+            key={selectedSplit}
+            split={selectedSplit}
+            splitLabel={selectedSplitLabel}
+            plan={selectedPlan}
+            availableSplits={activeSplits}
+            catalog={catalog}
+            cardioCatalog={cardioCatalog}
+            onRemoveCardio={(id) => removeAmBlock(selectedSplit, id)}
+            onUpdateCardio={(id, payload) => updateAmBlock(selectedSplit, id, payload)}
+            onRemoveExercise={(id) => removePmExercise(selectedSplit, id)}
+            onUpdateExercise={(id, payload) => updatePmExercise(selectedSplit, id, payload)}
+            onMoveExercise={(id, direction) => movePmExercise(selectedSplit, id, direction)}
+            onMoveExerciseToSplit={(id, target) => moveExerciseToSplit(selectedSplit, target, id)}
+          />
         </div>
       </Section>
       )}
@@ -1131,6 +1247,89 @@ style.replaceSync(`
   color: #64748b;
   font-weight: 400;
 }
+.training-config__builderSelector {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.24);
+  border-radius: 18px;
+  background: rgba(239, 246, 255, 0.96);
+  box-shadow: 0 16px 36px -32px rgba(15, 23, 42, 0.75);
+}
+.training-config__builderSelectorHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.training-config__builderSelectorHeader > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.training-config__builderSelectorHeader span {
+  color: #2563eb;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.training-config__builderSelectorHeader strong {
+  overflow-wrap: anywhere;
+}
+.training-config__builderSelectorHeader small {
+  flex-shrink: 0;
+  color: #64748b;
+}
+.training-config__builderDays {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+.training-config__builderDay {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+  min-height: 72px;
+  padding: 10px 12px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #334155;
+  text-align: left;
+}
+.training-config__builderDay > span:first-child {
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+.training-config__builderDay strong {
+  width: 100%;
+  overflow-wrap: anywhere;
+  font-size: 0.86rem;
+  line-height: 1.2;
+}
+.training-config__builderDay small {
+  margin-top: auto;
+  color: #64748b;
+  font-size: 0.72rem;
+}
+.training-config__builderDay--active {
+  border-color: #2563eb;
+  background: #2563eb;
+  box-shadow: 0 10px 24px -18px rgba(37, 99, 235, 0.9);
+  color: white;
+}
+.training-config__builderDay--active > span:first-child,
+.training-config__builderDay--active small {
+  color: #dbeafe;
+}
 .training-config__organizer {
   display: flex;
   flex-direction: column;
@@ -1277,6 +1476,118 @@ style.replaceSync(`
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   align-items: start;
 }
+.training-config__addComposer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.8);
+}
+.training-config__addHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+.training-config__addHeader > div {
+  min-width: 0;
+}
+.training-config__addHeader span {
+  color: #2563eb;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.training-config__addHeader h3,
+.training-config__addHeader p {
+  margin: 0;
+}
+.training-config__addHeader h3 {
+  margin-top: 3px;
+  font-size: 1.05rem;
+}
+.training-config__addHeader p {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.86rem;
+}
+.training-config__addDestination {
+  display: flex;
+  flex: 0 1 320px;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+}
+.training-config__addTabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 13px;
+  background: rgba(148, 163, 184, 0.13);
+}
+.training-config__addTabs button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #475569;
+  font-weight: 700;
+}
+.training-config__addTabs .training-config__addTab--active {
+  background: white;
+  color: #1d4ed8;
+  box-shadow: 0 8px 20px -16px rgba(15, 23, 42, 0.75);
+}
+.training-config__composerForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 2px;
+}
+.training-config__composerFields {
+  display: grid;
+  gap: 12px;
+  align-items: end;
+}
+.training-config__composerFields--exercise {
+  grid-template-columns: minmax(240px, 2fr) repeat(3, minmax(105px, 0.8fr));
+}
+.training-config__composerFields--cardio {
+  grid-template-columns: minmax(220px, 1.4fr) minmax(130px, 0.65fr) minmax(220px, 1fr);
+}
+.training-config__composerFields--cardio:has(> label:nth-child(4)) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.training-config__composerFields label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.training-config__composerPrimary select {
+  font-weight: 600;
+}
+.training-config__composerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.24);
+}
+.training-config__composerFooter small {
+  color: #64748b;
+}
+.training-config__composerFooter button {
+  flex-shrink: 0;
+  min-width: 200px;
+}
 .training-config__grid--labels {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
@@ -1294,8 +1605,40 @@ style.replaceSync(`
 }
 .training-config__preview {
   margin-top: 24px;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
+}
+.training-config__previewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.82);
+}
+.training-config__previewHeader > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.training-config__previewHeader span {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+.training-config__dayNavigation {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.training-config__dayNavigation button {
+  padding: 7px 10px;
+  font-size: 0.8rem;
+}
+.training-config__dayNavigation button:disabled {
+  opacity: 0.38;
 }
 .training-config__catalogMuscles {
   display: flex;
@@ -1408,9 +1751,51 @@ style.replaceSync(`
   background: rgba(254, 226, 226, 0.8);
   color: #b91c1c;
 }
+html[data-theme="dark"] .training-config__builderSelector {
+  border-color: var(--border);
+  background: var(--surface-raised);
+}
+html[data-theme="dark"] .training-config__previewHeader {
+  border-color: var(--border);
+  background: var(--surface-soft);
+}
+html[data-theme="dark"] .training-config__builderDay {
+  border-color: var(--border);
+  background: var(--surface-raised);
+  color: var(--text);
+}
+html[data-theme="dark"] .training-config__builderDay--active {
+  border-color: #60a5fa;
+  background: #1d4ed8;
+  color: #f8fafc;
+}
+html[data-theme="dark"] .training-config__builderDay--active > span:first-child,
+html[data-theme="dark"] .training-config__builderDay--active small {
+  color: #dbeafe;
+}
+html[data-theme="dark"] .training-config__addComposer {
+  border-color: var(--border);
+  background: var(--surface-soft);
+}
+html[data-theme="dark"] .training-config__addTabs {
+  border-color: var(--border);
+  background: rgba(148, 163, 184, 0.1);
+}
+html[data-theme="dark"] .training-config__addTabs button {
+  color: #cbd5e1;
+}
+html[data-theme="dark"] .training-config__addTabs .training-config__addTab--active {
+  background: #1d4ed8;
+  color: #f8fafc;
+}
+html[data-theme="dark"] .training-config__composerFooter {
+  border-top-color: var(--border);
+}
 @media (min-width: 1024px) {
-  .training-config__preview {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .training-config__builderSelector {
+    position: sticky;
+    top: 70px;
+    z-index: 4;
   }
 }
 @media (max-width: 700px) {
@@ -1430,6 +1815,41 @@ style.replaceSync(`
   }
   .training-config__backLink {
     padding: 0 6px 4px;
+  }
+  .training-config__builderSelectorHeader,
+  .training-config__previewHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .training-config__builderSelectorHeader small {
+    flex-shrink: 1;
+  }
+  .training-config__builderDays {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .training-config__builderDay {
+    min-height: 84px;
+  }
+  .training-config__addHeader,
+  .training-config__composerFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .training-config__addDestination {
+    flex-basis: auto;
+  }
+  .training-config__composerFields--exercise,
+  .training-config__composerFields--cardio,
+  .training-config__composerFields--cardio:has(> label:nth-child(4)) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .training-config__composerFooter button {
+    width: 100%;
+    min-width: 0;
+  }
+  .training-config__dayNavigation {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .training-config__organizerItem {
     grid-template-columns: auto auto 1fr auto;

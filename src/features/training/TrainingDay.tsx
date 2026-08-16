@@ -73,6 +73,9 @@ export function TrainingDay({
   const [editingExercises, setEditingExercises] = useState<Record<string, boolean>>({});
   const [editingCardio, setEditingCardio] = useState<Record<string, boolean>>({});
   const [exerciseDestinations, setExerciseDestinations] = useState<Record<string, Split | "">>({});
+  const [activeSection, setActiveSection] = useState<"exercises" | "cardio">(
+    plan.pm.length > 0 ? "exercises" : "cardio",
+  );
 
   useEffect(() => {
     setExerciseDrafts(() => {
@@ -279,13 +282,45 @@ export function TrainingDay({
           {splitLabel?.trim() ? ` · ${splitLabel.trim()}` : ""}
         </h3>
       </header>
+      <div className="training-day__contentTabs" role="tablist" aria-label={`Conteúdo do treino ${split}`}>
+        <button
+          id={`training-day-${split}-exercises-tab`}
+          type="button"
+          role="tab"
+          aria-selected={activeSection === "exercises"}
+          aria-controls={`training-day-${split}-exercises-panel`}
+          className={activeSection === "exercises" ? "training-day__contentTab--active" : ""}
+          onClick={() => setActiveSection("exercises")}
+        >
+          <span>Musculação</span>
+          <small>{plan.pm.length}</small>
+        </button>
+        <button
+          id={`training-day-${split}-cardio-tab`}
+          type="button"
+          role="tab"
+          aria-selected={activeSection === "cardio"}
+          aria-controls={`training-day-${split}-cardio-panel`}
+          className={activeSection === "cardio" ? "training-day__contentTab--active" : ""}
+          onClick={() => setActiveSection("cardio")}
+        >
+          <span>Cardio</span>
+          <small>{plan.am.length}</small>
+        </button>
+      </div>
       <div className="training-day__columns">
-        <div>
+        {activeSection === "cardio" && (
+        <div
+          className="training-day__cardioSection"
+          id={`training-day-${split}-cardio-panel`}
+          role="tabpanel"
+          aria-labelledby={`training-day-${split}-cardio-tab`}
+        >
           <strong>Cardios do treino</strong>
           {plan.am.length === 0 ? (
             <p className="training-day__empty">Sem blocos cadastrados.</p>
           ) : (
-            <ul>
+            <ul className="training-day__cardioList">
               {plan.am.map((block) => {
                 const cardioDraft = cardioDrafts[block.id] ?? {
                   kind: block.kind,
@@ -390,12 +425,19 @@ export function TrainingDay({
             </ul>
           )}
         </div>
-        <div>
+        )}
+        {activeSection === "exercises" && (
+        <div
+          className="training-day__exerciseSection"
+          id={`training-day-${split}-exercises-panel`}
+          role="tabpanel"
+          aria-labelledby={`training-day-${split}-exercises-tab`}
+        >
           <strong>Exercícios de musculação</strong>
           {plan.pm.length === 0 ? (
             <p className="training-day__empty">Sem exercícios cadastrados.</p>
           ) : (
-            <ul>
+            <ul className="training-day__exerciseList">
               {plan.pm.map((exercise, index) => {
                 const catalogInfo = exercise.catalogId ? catalogById[exercise.catalogId] : undefined;
                 const draft =
@@ -420,6 +462,9 @@ export function TrainingDay({
                   <li key={exercise.id} style={muscleAccentStyle(muscles[0])}>
                     <div className="training-day__exercise">
                       <div className="training-day__exerciseHeader">
+                        <span className="training-day__sequence" aria-label={`Exercício ${index + 1}`}>
+                          {index + 1}
+                        </span>
                         <div className="training-day__exerciseInfo">
                           <span className="training-day__exerciseName">{exercise.name}</span>
                           {muscles.length > 0 && (
@@ -569,6 +614,7 @@ export function TrainingDay({
             </ul>
           )}
         </div>
+        )}
       </div>
     </div>
   );
@@ -601,9 +647,56 @@ style.replaceSync(`
 .training-day header h3 {
   margin: 0;
 }
+.training-day__contentTabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 14px;
+  background: rgba(148, 163, 184, 0.14);
+}
+.training-day__contentTabs button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #475569;
+  font-weight: 700;
+}
+.training-day__contentTabs button small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.25);
+  color: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+.training-day__contentTabs .training-day__contentTab--active {
+  background: white;
+  color: #1d4ed8;
+  box-shadow: 0 8px 20px -16px rgba(15, 23, 42, 0.7);
+}
+.training-day__contentTabs .training-day__contentTab--active small {
+  background: #dbeafe;
+}
 .training-day__columns {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
+}
+.training-day__cardioSection,
+.training-day__exerciseSection {
+  min-width: 0;
 }
 .training-day__columns ul {
   margin: 12px 0 0;
@@ -611,6 +704,10 @@ style.replaceSync(`
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.training-day__columns .training-day__cardioList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 .training-day__columns li {
   display: flex;
@@ -649,6 +746,20 @@ style.replaceSync(`
   display: flex;
   gap: 12px;
   align-items: flex-start;
+}
+.training-day__sequence {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 10px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 0.9rem;
+  font-weight: 800;
 }
 .training-day__exerciseInfo {
   flex: 1;
@@ -716,13 +827,20 @@ style.replaceSync(`
   margin-left: auto;
 }
 .training-day__reorder button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 30px;
   border-radius: 8px;
   border: 1px solid rgba(148, 163, 184, 0.4);
-  padding: 2px 8px;
+  padding: 3px 8px;
   background: rgba(248, 250, 252, 0.9);
+  color: #0f172a;
+  font-weight: 800;
 }
 .training-day__reorder button:disabled {
-  opacity: 0.5;
+  opacity: 0.42;
 }
 .training-day__exerciseSummary {
   display: flex;
@@ -752,9 +870,48 @@ style.replaceSync(`
   border-radius: 8px;
   font-size: 0.85rem;
 }
-@media (min-width: 768px) {
-  .training-day__columns {
+html[data-theme="dark"] .training-day__reorder button {
+  border-color: #60a5fa;
+  background: #1d4ed8;
+  color: #f8fafc;
+  box-shadow: 0 5px 14px -9px rgba(96, 165, 250, 0.9);
+}
+html[data-theme="dark"] .training-day__reorder button:disabled {
+  border-color: #475569;
+  background: #334155;
+  color: #94a3b8;
+  box-shadow: none;
+  opacity: 1;
+}
+html[data-theme="dark"] .training-day__summaryChips span {
+  background: #334155;
+  color: #e2e8f0;
+}
+html[data-theme="dark"] .training-day__contentTabs {
+  border-color: var(--border);
+  background: rgba(148, 163, 184, 0.1);
+}
+html[data-theme="dark"] .training-day__contentTabs button {
+  color: #cbd5e1;
+}
+html[data-theme="dark"] .training-day__contentTabs .training-day__contentTab--active {
+  background: #1d4ed8;
+  color: #f8fafc;
+}
+html[data-theme="dark"] .training-day__contentTabs .training-day__contentTab--active small {
+  background: rgba(255, 255, 255, 0.18);
+  color: #f8fafc;
+}
+html[data-theme="dark"] .training-day__sequence {
+  border-color: rgba(96, 165, 250, 0.55);
+  background: rgba(37, 99, 235, 0.22);
+  color: #bfdbfe;
+}
+@media (min-width: 900px) {
+  .training-day__columns .training-day__exerciseList {
+    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
   }
 }
 `);
