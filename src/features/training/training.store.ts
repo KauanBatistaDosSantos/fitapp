@@ -86,6 +86,7 @@ type TrainingState = {
   toggleSessionPart: (split: Split, part: "am" | "pm") => void;
   toggleExerciseDone: (split: Split, id: string) => void;
   setExerciseSetProgress: (split: Split, id: string, setsCompleted: number) => void;
+  substituteExerciseForWorkout: (split: Split, id: string, catalogId: string | null) => void;
   recordExerciseLoad: (
     split: Split,
     id: string,
@@ -206,6 +207,7 @@ const weekFallback = () => {
       ...entry,
       completedCardio: entry.completedCardio ?? [],
       setProgress: entry.setProgress ?? {},
+      exerciseSubstitutions: entry.exerciseSubstitutions ?? {},
     };
   });
 };
@@ -673,6 +675,7 @@ export const useTraining = create<TrainingState>((set) => ({
             doneExercises: [],
             completedCardio: [],
             setProgress: {},
+            exerciseSubstitutions: {},
           }),
           dateISO: destinationDates[destination] ?? sourceLog?.dateISO ?? isoDate(),
           split: destination,
@@ -723,6 +726,19 @@ export const useTraining = create<TrainingState>((set) => ({
     set((state) => {
       if (isCurrentWeekLog(state.weekLog)) return {};
       const weekLog = buildWeekLog();
+      save("tr:week", weekLog);
+      return { weekLog };
+    }),
+
+  substituteExerciseForWorkout: (split, id, catalogId) =>
+    set((state) => {
+      const weekLog = state.weekLog.map((entry) => {
+        if (entry.split !== split) return entry;
+        const exerciseSubstitutions = { ...(entry.exerciseSubstitutions ?? {}) };
+        if (catalogId) exerciseSubstitutions[id] = catalogId;
+        else delete exerciseSubstitutions[id];
+        return { ...entry, exerciseSubstitutions };
+      });
       save("tr:week", weekLog);
       return { weekLog };
     }),

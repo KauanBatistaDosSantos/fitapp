@@ -77,5 +77,6 @@ export const TrainingLogSchema = z.object({
   doneExercises: z.array(z.string()),
   completedCardio: z.array(z.string()).default([]),
   setProgress: z.record(z.string(), z.number()).default({}),
+  exerciseSubstitutions: z.record(z.string(), z.string()).default({}),
 });
 export type TrainingLog = z.infer<typeof TrainingLogSchema>;

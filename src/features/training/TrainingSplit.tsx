@@ -15,6 +15,10 @@ import {
 } from "./training.equipment";
 import { MuscleBadge } from "./MuscleBadge";
 import { muscleAccentStyle } from "./training.muscles";
+import {
+  suggestExerciseSubstitutions,
+  type ExerciseSubstitutionSuggestion,
+} from "./training.substitutions";
 
 type TrainingSplitProps = {
   split: Split;
@@ -25,6 +29,7 @@ type TrainingSplitProps = {
   onTogglePart: (split: Split, part: "am" | "pm") => void;
   onToggleCardio: (split: Split, id: string) => void;
   onSetSetProgress: (split: Split, id: string, setsCompleted: number) => void;
+  onSubstituteExercise: (split: Split, id: string, catalogId: string | null) => void;
   onRecordLoad: (
     split: Split,
     id: string,
@@ -75,11 +80,13 @@ export function TrainingSplit({
   onTogglePart,
   onToggleCardio,
   onSetSetProgress,
+  onSubstituteExercise,
   onRecordLoad,
   onUpdateExercise,
 }: TrainingSplitProps) {
   const progress = sessionProgress(plan, log);
   const [detailState, setDetailState] = useState<DetailState | null>(null);
+  const [substitutionExerciseId, setSubstitutionExerciseId] = useState<string | null>(null);
   const [exerciseTransition, setExerciseTransition] = useState<ExerciseTransitionState | null>(null);
   const transitionTimer = useExerciseTimer(
     `between-exercises:${split}`,
@@ -96,16 +103,21 @@ export function TrainingSplit({
     [catalog],
   );
 
-  const exercises = useMemo(() => {
-    return [...plan.pm];
-  }, [plan.pm]);
+  const exercises = useMemo(
+    () => plan.pm.map((exercise) => applyWorkoutSubstitution(
+      exercise,
+      log?.exerciseSubstitutions?.[exercise.id],
+      catalogById,
+    )),
+    [catalogById, log?.exerciseSubstitutions, plan.pm],
+  );
 
   const combinedItems: CombinedItem[] = useMemo(() => {
     const toCardioItem = (block: TrainingTemplate[Split]["am"][number]): CombinedItem => ({
       kind: "cardio",
       id: block.id,
       label: block.kind,
-      detail: `${block.minutes} min · ${describeCardioPlacement(block, plan.pm)}`,
+      detail: `${block.minutes} min · ${describeCardioPlacement(block, exercises)}`,
       done: log?.completedCardio.includes(block.id) ?? false,
     });
     const toExerciseItem = (exercise: Exercise): CombinedItem => ({
@@ -118,11 +130,11 @@ export function TrainingSplit({
     const before = plan.am.filter((block) => (block.placement ?? "before") === "before");
     const after = plan.am.filter((block) => block.placement === "after");
     const between = plan.am.filter((block) => block.placement === "between");
-    const anchoredIds = new Set(plan.pm.map((exercise) => exercise.id));
+    const anchoredIds = new Set(exercises.map((exercise) => exercise.id));
     const orphaned = between.filter((block) => !block.afterExerciseId || !anchoredIds.has(block.afterExerciseId));
     const items: CombinedItem[] = before.map(toCardioItem);
 
-    plan.pm.forEach((exercise) => {
+    exercises.forEach((exercise) => {
       items.push(toExerciseItem(exercise));
       between
         .filter((block) => block.afterExerciseId === exercise.id)
@@ -131,12 +143,12 @@ export function TrainingSplit({
     after.forEach((block) => items.push(toCardioItem(block)));
     orphaned.forEach((block) => items.push(toCardioItem(block)));
     return items;
-  }, [plan.am, plan.pm, log?.completedCardio, log?.doneExercises, log?.setProgress]);
+  }, [exercises, plan.am, log?.completedCardio, log?.doneExercises, log?.setProgress]);
 
   const detailExercise = useMemo(() => {
     if (!detailState) return undefined;
-    return plan.pm.find((exercise) => exercise.id === detailState.id);
-  }, [detailState, plan.pm]);
+    return exercises.find((exercise) => exercise.id === detailState.id);
+  }, [detailState, exercises]);
 
   const detailCatalog = detailExercise?.catalogId ? catalogById[detailExercise.catalogId] : undefined;
   const rawLabel = preferences.splitLabels?.[split] ?? defaultSplitLabels[split] ?? "";
@@ -144,20 +156,39 @@ export function TrainingSplit({
   const hasSequencedCardio = plan.am.some((block) => (block.placement ?? "before") !== "before");
   const transitionIsActive = transitionTimer.phase === "resting" || transitionTimer.phase === "rest-paused";
   const persistedTransitionTarget = transitionTimer.context?.targetExerciseId
-    ? plan.pm.find((exercise) => exercise.id === transitionTimer.context?.targetExerciseId)
+    ? exercises.find((exercise) => exercise.id === transitionTimer.context?.targetExerciseId)
     : undefined;
   const fallbackTransitionTarget = transitionIsActive
-    ? plan.pm.find((exercise) => {
+    ? exercises.find((exercise) => {
         const completed = log?.setProgress[exercise.id] ?? 0;
         return completed < exercise.sets && !log?.doneExercises.includes(exercise.id);
       })
     : undefined;
   const transitionTarget = exerciseTransition?.split === split
-    ? plan.pm.find((exercise) => exercise.id === exerciseTransition.targetId)
+    ? exercises.find((exercise) => exercise.id === exerciseTransition.targetId)
     : persistedTransitionTarget ?? fallbackTransitionTarget;
   const transitionDurationSec = exerciseTransition?.split === split
     ? exerciseTransition.durationSec
     : transitionTimer.context?.durationSec ?? 90;
+  const substitutionOriginalExercise = substitutionExerciseId
+    ? plan.pm.find((exercise) => exercise.id === substitutionExerciseId)
+    : undefined;
+  const substitutionCurrentExercise = substitutionExerciseId
+    ? exercises.find((exercise) => exercise.id === substitutionExerciseId)
+    : undefined;
+  const substitutionOriginalCatalog = substitutionOriginalExercise
+    ? findCatalogExercise(substitutionOriginalExercise, catalog)
+    : undefined;
+  const substitutionSuggestions = useMemo(
+    () => substitutionOriginalExercise
+      ? suggestExerciseSubstitutions(
+          substitutionOriginalExercise,
+          substitutionOriginalCatalog,
+          catalog,
+        )
+      : [],
+    [catalog, substitutionOriginalCatalog, substitutionOriginalExercise],
+  );
 
   const handleExerciseCompleted = (exerciseId: string) => {
     const currentIndex = combinedItems.findIndex(
@@ -180,7 +211,7 @@ export function TrainingSplit({
       setExerciseTransition(null);
       return;
     }
-    const sourceExercise = plan.pm.find((exercise) => exercise.id === exerciseId);
+    const sourceExercise = exercises.find((exercise) => exercise.id === exerciseId);
     const durationSec = sourceExercise?.exerciseRestSec ?? 90;
     setExerciseTransition({
       split,
@@ -304,7 +335,9 @@ export function TrainingSplit({
                 catalogInfo={catalogById[item.exercise.catalogId ?? ""]}
                 displayFormat={preferences.displayFormat}
                 restSoundEnabled={preferences.seriesRestSound}
+                isSubstituted={Boolean(log?.exerciseSubstitutions?.[item.exercise.id])}
                 onOpenDetails={() => setDetailState(createDetailState(item.exercise))}
+                onOpenSubstitutions={() => setSubstitutionExerciseId(item.exercise.id)}
                 onSetProgress={(sets) => onSetSetProgress(split, item.exercise.id, sets)}
                 onExerciseCompleted={() => handleExerciseCompleted(item.exercise.id)}
                 onSeriesStarted={handleSeriesStarted}
@@ -359,7 +392,9 @@ export function TrainingSplit({
                       catalogInfo={catalogById[exercise.catalogId ?? ""]}
                       displayFormat={preferences.displayFormat}
                       restSoundEnabled={preferences.seriesRestSound}
+                      isSubstituted={Boolean(log?.exerciseSubstitutions?.[exercise.id])}
                       onOpenDetails={() => setDetailState(createDetailState(exercise))}
+                      onOpenSubstitutions={() => setSubstitutionExerciseId(exercise.id)}
                       onSetProgress={(sets) => onSetSetProgress(split, exercise.id, sets)}
                       onExerciseCompleted={() => handleExerciseCompleted(exercise.id)}
                       onSeriesStarted={handleSeriesStarted}
@@ -376,8 +411,26 @@ export function TrainingSplit({
         </>
       )}
 
-      {isToday(log ?? { dateISO: "", split, amDone: false, pmDone: false, doneExercises: [], completedCardio: [], setProgress: {} }) && (
+      {isToday(log ?? { dateISO: "", split, amDone: false, pmDone: false, doneExercises: [], completedCardio: [], setProgress: {}, exerciseSubstitutions: {} }) && (
         <footer className="training-split__footer">Treino de hoje</footer>
+      )}
+
+      {substitutionOriginalExercise && substitutionCurrentExercise && (
+        <ExerciseSubstitutionDialog
+          originalExercise={substitutionOriginalExercise}
+          currentExercise={substitutionCurrentExercise}
+          activeCatalogId={log?.exerciseSubstitutions?.[substitutionOriginalExercise.id]}
+          suggestions={substitutionSuggestions}
+          onSelect={(catalogId) => {
+            onSubstituteExercise(split, substitutionOriginalExercise.id, catalogId);
+            setSubstitutionExerciseId(null);
+          }}
+          onRestore={() => {
+            onSubstituteExercise(split, substitutionOriginalExercise.id, null);
+            setSubstitutionExerciseId(null);
+          }}
+          onClose={() => setSubstitutionExerciseId(null)}
+        />
       )}
 
       {detailExercise && detailState && (
@@ -458,7 +511,9 @@ type ExerciseItemProps = {
   catalogInfo?: ExerciseCatalogItem;
   displayFormat: TrainingPreferences["displayFormat"];
   restSoundEnabled: boolean;
+  isSubstituted: boolean;
   onOpenDetails: () => void;
+  onOpenSubstitutions: () => void;
   onSetProgress: (sets: number) => void;
   onExerciseCompleted: () => void;
   onSeriesStarted: () => void;
@@ -472,7 +527,9 @@ function ExerciseItem({
   catalogInfo,
   displayFormat,
   restSoundEnabled,
+  isSubstituted,
   onOpenDetails,
+  onOpenSubstitutions,
   onSetProgress,
   onExerciseCompleted,
   onSeriesStarted,
@@ -558,6 +615,7 @@ function ExerciseItem({
             <div className="training-split__exerciseHeading">
               <div className="training-split__exerciseMeta">
                 <span className="training-split__exerciseName">{exercise.name}</span>
+                {isSubstituted && <span className="training-split__substitutedBadge">Substituído hoje</span>}
                 {muscles.length > 0 && (
                   <span className="training-split__exerciseMuscles">
                     {muscles.map((muscle) => <MuscleBadge key={muscle} muscle={muscle} />)}
@@ -586,6 +644,16 @@ function ExerciseItem({
         </div>
       </div>
       <div className="training-split__sessionActions">
+            {!isCompleted && (
+              <button
+                type="button"
+                className="training-split__sessionSecondary training-split__substituteButton"
+                onClick={onOpenSubstitutions}
+              >
+                <span aria-hidden="true">↔</span>
+                {isSubstituted ? "Trocar novamente" : "Substituir exercício"}
+              </button>
+            )}
             {isCompleted ? (
               <button type="button" className="training-split__play training-split__play--done" disabled>
                 <span aria-hidden="true">✓</span>
@@ -663,6 +731,93 @@ function SetCounter({ total, completed, onChange }: SetCounterProps) {
   }
 
   return <div className="training-split__sets">{circles}</div>;
+}
+
+type ExerciseSubstitutionDialogProps = {
+  originalExercise: Exercise;
+  currentExercise: Exercise;
+  activeCatalogId?: string;
+  suggestions: ExerciseSubstitutionSuggestion[];
+  onSelect: (catalogId: string) => void;
+  onRestore: () => void;
+  onClose: () => void;
+};
+
+function ExerciseSubstitutionDialog({
+  originalExercise,
+  currentExercise,
+  activeCatalogId,
+  suggestions,
+  onSelect,
+  onRestore,
+  onClose,
+}: ExerciseSubstitutionDialogProps) {
+  const titleId = `substitution-title-${originalExercise.id}`;
+
+  return (
+    <div className="training-substitution" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <div className="training-substitution__card">
+        <header className="training-substitution__header">
+          <div>
+            <span>Troca para o treino de hoje</span>
+            <h4 id={titleId}>Substituir {originalExercise.name}</h4>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Fechar substituições">
+            ×
+          </button>
+        </header>
+
+        <p className="training-substitution__intro">
+          As sugestões priorizam exercícios que ativam os mesmos grupos musculares. Séries, repetições e descansos serão mantidos.
+        </p>
+
+        {activeCatalogId && (
+          <div className="training-substitution__current">
+            <span>Em uso neste treino</span>
+            <strong>{currentExercise.name}</strong>
+            <button type="button" onClick={onRestore}>Voltar ao exercício original</button>
+          </div>
+        )}
+
+        <div className="training-substitution__list">
+          {suggestions.length === 0 ? (
+            <div className="training-substitution__empty">
+              <strong>Nenhuma alternativa compatível encontrada.</strong>
+              <span>Adicione exercícios do mesmo grupo muscular à sua biblioteca para receber sugestões.</span>
+            </div>
+          ) : (
+            suggestions.map((suggestion) => {
+              const isActive = activeCatalogId === suggestion.exercise.id;
+              const badges = suggestion.matchedMuscles.length > 0
+                ? suggestion.matchedMuscles
+                : [suggestion.exercise.muscle];
+              return (
+                <button
+                  key={suggestion.exercise.id}
+                  type="button"
+                  className={`training-substitution__option ${isActive ? "training-substitution__option--active" : ""}`}
+                  onClick={() => onSelect(suggestion.exercise.id)}
+                  disabled={isActive}
+                >
+                  <span className="training-substitution__optionIcon" aria-hidden="true">↔</span>
+                  <span className="training-substitution__optionInfo">
+                    <strong>{suggestion.exercise.name}</strong>
+                    <small>{suggestion.reason}</small>
+                    <span className="training-substitution__muscles">
+                      {badges.map((muscle) => <MuscleBadge key={muscle} muscle={muscle} />)}
+                    </span>
+                  </span>
+                  <span className="training-substitution__optionAction">
+                    {isActive ? "Em uso" : "Usar"}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 type ExerciseDetailProps = {
@@ -850,6 +1005,40 @@ function resolveMuscles(exercise: Exercise, info?: ExerciseCatalogItem) {
   return Array.from(muscles);
 }
 
+function applyWorkoutSubstitution(
+  exercise: Exercise,
+  substitutionCatalogId: string | undefined,
+  catalogById: Record<string, ExerciseCatalogItem>,
+): Exercise {
+  const substitute = substitutionCatalogId ? catalogById[substitutionCatalogId] : undefined;
+  if (!substitute) return exercise;
+  const muscles = Array.from(new Set([
+    substitute.muscle,
+    ...(substitute.muscles ?? []),
+    ...(substitute.secondaryMuscles ?? []),
+  ].filter((muscle): muscle is string => Boolean(muscle))));
+  return {
+    ...exercise,
+    catalogId: substitute.id,
+    name: substitute.name,
+    gifUrl: substitute.gifUrl,
+    mediaUrls: substitute.mediaUrls,
+    muscles,
+    secondaryMuscles: substitute.secondaryMuscles,
+    substitutions: substitute.substitutions,
+  };
+}
+
+function findCatalogExercise(exercise: Exercise, catalog: ExerciseCatalogItem[]) {
+  if (exercise.catalogId) {
+    const exact = catalog.find((candidate) => candidate.id === exercise.catalogId);
+    if (exact) return exact;
+  }
+  return catalog.find((candidate) =>
+    candidate.name.localeCompare(exercise.name, "pt-BR", { sensitivity: "base" }) === 0,
+  );
+}
+
 function describeCardioPlacement(
   block: TrainingTemplate[Split]["am"][number],
   exercises: Exercise[],
@@ -1012,6 +1201,15 @@ style.replaceSync(`
   font-weight: 700;
   overflow-wrap: anywhere;
 }
+.training-split__substitutedBadge {
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(14, 165, 233, 0.14);
+  color: #0369a1;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
 .training-split__exerciseMuscles,
 .training-detail__muscleBadges {
   display: flex;
@@ -1084,6 +1282,12 @@ style.replaceSync(`
   color: #1d4ed8;
   font-size: 0.82rem;
   font-weight: 700;
+}
+.training-split__substituteButton {
+  gap: 5px;
+  background: rgba(139, 92, 246, 0.1);
+  border-color: rgba(124, 58, 237, 0.3);
+  color: #6d28d9;
 }
 .training-split__seriesNotice,
 .training-split__restNotice {
@@ -1194,6 +1398,168 @@ style.replaceSync(`
 }
 .training-split__empty {
   color: #94a3b8;
+}
+.training-substitution {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.62);
+  backdrop-filter: blur(4px);
+}
+.training-substitution__card {
+  width: min(620px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 28px 70px -34px var(--shadow);
+}
+.training-substitution__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.training-substitution__header > div {
+  min-width: 0;
+}
+.training-substitution__header span {
+  color: var(--primary);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.training-substitution__header h4 {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+}
+.training-substitution__header button {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+.training-substitution__intro {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.9rem;
+}
+.training-substitution__current {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 3px 12px;
+  padding: 12px;
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  border-radius: 14px;
+  background: rgba(14, 165, 233, 0.1);
+}
+.training-substitution__current span {
+  grid-column: 1;
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.training-substitution__current strong {
+  grid-column: 1;
+}
+.training-substitution__current button {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  background: transparent;
+  border-color: rgba(14, 165, 233, 0.35);
+  color: var(--primary);
+  font-size: 0.8rem;
+}
+.training-substitution__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.training-substitution__option {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-raised);
+  color: var(--text);
+  text-align: left;
+}
+.training-substitution__option:hover:not(:disabled) {
+  border-color: rgba(37, 99, 235, 0.5);
+}
+.training-substitution__option--active:disabled {
+  background: var(--primary-soft);
+  border-color: rgba(37, 99, 235, 0.45);
+  color: var(--text);
+  opacity: 1;
+}
+.training-substitution__optionIcon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+.training-substitution__optionInfo {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.training-substitution__optionInfo strong {
+  overflow-wrap: anywhere;
+}
+.training-substitution__optionInfo small {
+  color: var(--text-soft);
+  line-height: 1.3;
+}
+.training-substitution__muscles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+.training-substitution__optionAction {
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+.training-substitution__empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  color: var(--text-soft);
+}
+.training-substitution__empty span {
+  font-size: 0.85rem;
 }
 .training-detail {
   position: fixed;
@@ -1377,6 +1743,34 @@ style.replaceSync(`
   gap: 4px;
 }
 @media (max-width: 640px) {
+  .training-substitution {
+    align-items: end;
+    padding: 10px;
+  }
+  .training-substitution__card {
+    max-height: calc(100dvh - 20px);
+    padding: 16px;
+  }
+  .training-substitution__current {
+    grid-template-columns: 1fr;
+  }
+  .training-substitution__current button {
+    grid-column: 1;
+    grid-row: auto;
+    width: 100%;
+    margin-top: 7px;
+  }
+  .training-substitution__option {
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .training-substitution__optionIcon {
+    width: 38px;
+    height: 38px;
+  }
+  .training-substitution__optionAction {
+    grid-column: 2;
+  }
   .training-split {
     padding: 12px;
   }

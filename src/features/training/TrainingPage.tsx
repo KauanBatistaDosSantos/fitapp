@@ -23,6 +23,7 @@ export default function TrainingPage() {
     toggleSessionPart,
     toggleCardioBlock,
     setExerciseSetProgress,
+    substituteExerciseForWorkout,
     recordExerciseLoad,
     resetWeek,
     ensureCurrentWeek,
@@ -147,13 +148,19 @@ export default function TrainingPage() {
               <ProgressBar value={summaryProgress} label="Semana concluída" />
             </div>
 
-            <div className="training-tabs">
+            <div className="training-tabsHeader">
+              <strong>Escolha o treino</strong>
+              <span>{activeSplits.length} dias disponíveis</span>
+            </div>
+            <div className="training-tabs" role="tablist" aria-label="Selecionar dia de treino">
               {activeSplits.map((split) => {
                 const label = resolveSplitLabel(split);
                 return (
                   <button
                     key={split}
                     type="button"
+                    role="tab"
+                    aria-selected={activeSplit === split}
                     className={`training-tabs__item ${activeSplit === split ? "training-tabs__item--active" : ""}`}
                     onClick={() => handleSelectSplit(split)}
                     aria-label={label ? `Treino ${split}: ${label}` : `Treino ${split}`}
@@ -184,6 +191,7 @@ export default function TrainingPage() {
               onTogglePart={toggleSessionPart}
               onToggleCardio={toggleCardioBlock}
               onSetSetProgress={setExerciseSetProgress}
+              onSubstituteExercise={substituteExerciseForWorkout}
               onRecordLoad={recordExerciseLoad}
               onUpdateExercise={updatePmExercise}
             />
@@ -325,6 +333,7 @@ export default function TrainingPage() {
               onTogglePart={toggleSessionPart}
               onToggleCardio={toggleCardioBlock}
               onSetSetProgress={setExerciseSetProgress}
+              onSubstituteExercise={substituteExerciseForWorkout}
               onRecordLoad={recordExerciseLoad}
               onUpdateExercise={updatePmExercise}
             />
@@ -474,33 +483,48 @@ style.replaceSync(`
   background: white;
   color: #0f172a;
 }
-.training-tabs {
+.training-tabsHeader {
   display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 18px 0 8px;
+}
+.training-tabsHeader strong {
+  color: var(--text);
+}
+.training-tabsHeader span {
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.training-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
   padding: 6px;
   background: rgba(148, 163, 184, 0.15);
-  border-radius: 999px;
-  margin: 18px 0;
-  justify-content: flex-start;
+  border-radius: 18px;
+  margin: 0 0 18px;
   width: 100%;
   max-width: 100%;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  scrollbar-width: thin;
 }
 .training-tabs__item {
   background: transparent;
   border: none;
-  padding: 8px 16px;
-  border-radius: 999px;
+  padding: 10px 12px;
+  border-radius: 14px;
   font-weight: 600;
   color: #475569;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  min-width: 110px;
-  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 64px;
+  width: 100%;
+  overflow-wrap: anywhere;
 }
 .training-tabs__title {
   line-height: 1.1;
@@ -509,7 +533,8 @@ style.replaceSync(`
   font-size: 0.75rem;
   color: #64748b;
   font-weight: 500;
-  line-height: 1.1;
+  line-height: 1.25;
+  text-wrap: balance;
 }
 .training-tabs__item--active {
   background: white;
@@ -518,11 +543,6 @@ style.replaceSync(`
 }
 .training-tabs__item--active .training-tabs__subtitle {
   color: #1d4ed8;
-}
-@media (min-width: 720px) {
-  .training-tabs {
-    justify-content: center;
-  }
 }
 .training-actions {
   display: flex;
@@ -684,6 +704,12 @@ style.replaceSync(`
   text-transform: capitalize;
 }
 @media (max-width: 640px) {
+  .training-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .training-tabs__item:nth-child(odd):last-child {
+    grid-column: 1 / -1;
+  }
   .training-immersiveEntry,
   .training-immersive__footer {
     align-items: stretch;

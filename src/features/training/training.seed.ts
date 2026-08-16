@@ -131,6 +131,7 @@ export function buildWeekLog(reference: Date = new Date()): TrainingLog[] {
       doneExercises: [],
       completedCardio: [],
       setProgress: {},
+      exerciseSubstitutions: {},
     };
   });
 }
